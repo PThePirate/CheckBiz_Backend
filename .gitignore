@@ -1,0 +1,128 @@
+# =====================================================================
+# CheckBiz — .gitignore raíz (frontend + backend)
+# =====================================================================
+
+# --------------------------------------------------------------------
+# 1) VARIABLES DE ENTORNO Y SECRETOS — lo más crítico
+# --------------------------------------------------------------------
+# Contienen: DATABASE_URL con password real, JWT_SECRET, credenciales de
+# proveedores (SMS/WhatsApp cuando se conecten), API keys.
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.staging
+!.env.example
+!.env.*.example
+
+# Perfiles de Spring Boot con secretos reales (nunca el genérico application.yml,
+# ese sí se commitea — solo las variantes con datos reales de un entorno).
+application-local.yml
+application-local.yaml
+application-secrets.yml
+application-prod.yml
+application-production.yml
+
+# --------------------------------------------------------------------
+# 2) CERTIFICADOS, LLAVES Y KEYSTORES
+# --------------------------------------------------------------------
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa
+id_rsa.pub
+id_ed25519
+
+# --------------------------------------------------------------------
+# 3) CREDENCIALES DE NUBE / INFRAESTRUCTURA
+# --------------------------------------------------------------------
+.aws/
+.gcloud/
+gcloud-credentials.json
+service-account*.json
+google-services.json
+firebase-credentials.json
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+# --------------------------------------------------------------------
+# 4) BASE DE DATOS — dumps y datos locales
+# --------------------------------------------------------------------
+# Un dump de checkbiz_db real contiene cédulas, hashes de contraseña,
+# correos y URLs de fotos de verificación — NUNCA se commitea.
+*.sql.gz
+*.dump
+*.backup
+/pgdata/
+/postgres-data/
+checkbiz-backend/db/*.dump
+
+# --------------------------------------------------------------------
+# 5) CONTENIDO SUBIDO POR USUARIOS — datos personales reales
+# --------------------------------------------------------------------
+# Selfies con cédula (KYC Capa 3), fotos de portada/catálogo en local.
+# Información biométrica + documento de identidad: la fuga más grave
+# posible para este proyecto si se sube por accidente.
+checkbiz-backend/uploads/*
+!checkbiz-backend/uploads/.gitkeep
+**/uploads/*
+!**/uploads/.gitkeep
+media/
+storage/
+
+# --------------------------------------------------------------------
+# 6) DOCKER — overrides locales que suelen llevar secretos reales
+# --------------------------------------------------------------------
+docker-compose.override.yml
+docker-compose.local.yml
+.docker/
+
+# --------------------------------------------------------------------
+# 7) BUILD / DEPENDENCIAS (no son secretos, pero no deben versionarse)
+# --------------------------------------------------------------------
+# Frontend
+node_modules/
+dist/
+dist-ssr/
+.vite/
+.cache/
+
+# Backend (Kotlin/Gradle)
+build/
+.gradle/
+out/
+*.class
+
+# --------------------------------------------------------------------
+# 8) LOGS
+# --------------------------------------------------------------------
+*.log
+logs/
+npm-debug.log*
+yarn-error.log*
+
+# --------------------------------------------------------------------
+# 9) EDITOR / SISTEMA OPERATIVO
+# --------------------------------------------------------------------
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --------------------------------------------------------------------
+# 10) TEMPORALES
+# --------------------------------------------------------------------
+*.bak
+*.orig
+*.tmp
+*.swp

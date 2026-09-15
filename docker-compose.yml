@@ -1,0 +1,45 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: checkbiz_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: checkbiz_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: checkbiz_dev_pw
+    ports:
+      - "5432:5432"
+    volumes:
+      - checkbiz_pg_data:/var/lib/postgresql/data
+    # Nota: a diferencia de otras versiones de este proyecto, aquí NO se
+    # precarga db/checkbiz_schema.sql en el arranque del contenedor — el
+    # esquema lo crea Flyway (V1__init.sql, el mismo SQL ya validado) la
+    # primera vez que arranca el backend. Postgres debe quedar limpio.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d checkbiz_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: .
+    container_name: checkbiz_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: jdbc:postgresql://db:5432/checkbiz_db
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: checkbiz_dev_pw
+      JWT_SECRET: cambia_este_valor_por_uno_largo_y_aleatorio
+      OTP_DEV_MODE: "true"
+      PORT: 4000
+    ports:
+      - "4000:4000"
+    volumes:
+      - checkbiz_uploads:/app/uploads
+
+volumes:
+  checkbiz_pg_data:
+  checkbiz_uploads:
