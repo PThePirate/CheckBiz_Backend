@@ -1,0 +1,41 @@
+package com.checkbiz.backend.service
+
+import com.checkbiz.backend.exception.AppException
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.http.HttpStatus
+import org.springframework.stereotype.Service
+import org.springframework.web.multipart.MultipartFile
+import java.nio.file.Files
+import java.nio.file.Path
+import java.util.UUID
+
+@Service
+class ArchivoService(
+    @Value("\${checkbiz.uploads.dir}") private val uploadsDir: String,
+) {
+    private val tiposPermitidos = setOf("image/jpeg", "image/png", "image/webp")
+
+    /** Guarda el archivo en disco y devuelve la ruta pública relativa (/uploads/...). */
+    fun guardarFotoVerificacion(file: MultipartFile): String {
+        if (file.isEmpty) {
+            throw AppException(HttpStatus.BAD_REQUEST, "FOTO_REQUERIDA", "Debes adjuntar una imagen (selfie con cédula)")
+        }
+        if (file.contentType !in tiposPermitidos) {
+            throw AppException(HttpStatus.BAD_REQUEST, "FORMATO_INVALIDO", "Formato no permitido. Usa JPG, PNG o WEBP.")
+        }
+
+        val dir = Path.of(uploadsDir)
+        Files.createDirectories(dir)
+
+        val ext = when (file.contentType) {
+            "image/png" -> ".png"
+            "image/webp" -> ".webp"
+            else -> ".jpg"
+        }
+        val nombre = "${UUID.randomUUID()}$ext"
+        val destino = dir.resolve(nombre)
+        file.transferTo(destino)
+
+        return "/uploads/$nombre"
+    }
+}

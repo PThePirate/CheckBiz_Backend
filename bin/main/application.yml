@@ -1,0 +1,41 @@
+server:
+  port: ${PORT:4000}
+
+spring:
+  application:
+    name: checkbiz-backend
+
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/checkbiz_db}
+    username: ${DATABASE_USER:postgres}
+    password: ${DATABASE_PASSWORD:checkbiz_dev_pw}
+
+  jpa:
+    hibernate:
+      # 'validate': el esquema real vive en Flyway (V1__init.sql, el SQL ya
+      # validado). Hibernate solo confirma que las entidades coinciden con
+      # las tablas — nunca genera ni altera el esquema por su cuenta.
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+checkbiz:
+  jwt:
+    secret: ${JWT_SECRET:cambia_este_valor_por_uno_largo_y_aleatorio}
+    expiration-ms: ${JWT_EXPIRATION_MS:604800000} # 7 días
+  otp:
+    dev-mode: ${OTP_DEV_MODE:true}
+  uploads:
+    dir: ${UPLOADS_DIR:uploads}
+
+logging:
+  level:
+    com.checkbiz.backend: INFO
+    org.hibernate.SQL: WARN
