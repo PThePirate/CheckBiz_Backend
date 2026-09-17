@@ -42,9 +42,9 @@ class JwtAuthFilter(
                     tipo = TipoToken.USUARIO,
                     principalObj = UsuarioClaims(
                         sub = sub,
-                        rolCliente = claims.get("rolCliente", Boolean::class.java) ?: false,
-                        rolEmprendedor = claims.get("rolEmprendedor", Boolean::class.java) ?: false,
-                        kycLayer = (claims.get("kycLayer", Integer::class.java) ?: 1).toShort(),
+                        rolCliente = claims.get("rolCliente", Boolean::class.javaObjectType) ?: false,
+                        rolEmprendedor = claims.get("rolEmprendedor", Boolean::class.javaObjectType) ?: false,
+                        kycLayer = (claims.get("kycLayer", Int::class.javaObjectType) ?: 1).toShort(),
                     ),
                     authorities = listOf(SimpleGrantedAuthority("ROLE_USUARIO")),
                 )

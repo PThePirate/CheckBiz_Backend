@@ -26,12 +26,32 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
+  # SMTP para el envío real de correo (Gmail, Outlook, o cualquier
+  # proveedor estándar). El host tiene un valor por defecto (Gmail) para
+  # que Spring Boot siempre pueda crear el bean JavaMailSender, incluso sin
+  # configurar nada — checkbiz.email.habilitado es lo que de verdad decide
+  # si se intenta enviar un correo real o no (ver EmailService.kt).
+  mail:
+    host: ${SMTP_HOST:smtp.gmail.com}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
 checkbiz:
   jwt:
-    secret: ${JWT_SECRET:cambia_este_valor_por_uno_largo_y_aleatorio}
+    secret: ${JWT_SECRET:600452}
     expiration-ms: ${JWT_EXPIRATION_MS:604800000} # 7 días
   otp:
     dev-mode: ${OTP_DEV_MODE:true}
+  email:
+    from: ${EMAIL_FROM:}
+    habilitado: ${EMAIL_HABILITADO:false}
   uploads:
     dir: ${UPLOADS_DIR:uploads}
 

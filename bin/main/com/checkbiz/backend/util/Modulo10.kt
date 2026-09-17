@@ -31,12 +31,12 @@ object Modulo10 {
         val provincia = cedula.substring(0, 2).toInt()
         val provinciaValida = (provincia in 1..24) || provincia == 30
         if (!provinciaValida) {
-            return ResultadoValidacion(false, "Código de provincia inválido")
+            return ResultadoValidacion(false, "El número de cédula ingresado no es válido")
         }
 
         val tercerDigito = digitos[2]
         if (tercerDigito > 5) {
-            return ResultadoValidacion(false, "Tercer dígito inválido para persona natural")
+            return ResultadoValidacion(false, "El número de cédula ingresado no es válido")
         }
 
         var suma = 0
@@ -53,7 +53,7 @@ object Modulo10 {
         val verificadorReal = digitos[9]
 
         if (verificadorEsperado != verificadorReal) {
-            return ResultadoValidacion(false, "Dígito verificador no coincide (Módulo 10)")
+            return ResultadoValidacion(false, "El número de cédula ingresado no es válido")
         }
 
         return ResultadoValidacion(true)

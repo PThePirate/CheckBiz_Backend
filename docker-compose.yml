@@ -33,7 +33,13 @@ services:
       DATABASE_USER: postgres
       DATABASE_PASSWORD: checkbiz_dev_pw
       JWT_SECRET: cambia_este_valor_por_uno_largo_y_aleatorio
-      OTP_DEV_MODE: "true"
+      OTP_DEV_MODE: "${OTP_DEV_MODE:-false}"
+      EMAIL_HABILITADO: "${EMAIL_HABILITADO:-true}"
+      SMTP_HOST: "${SMTP_HOST:-smtp.gmail.com}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_USERNAME: "${SMTP_USERNAME}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD}"
+      EMAIL_FROM: "${EMAIL_FROM}"
       PORT: 4000
     ports:
       - "4000:4000"

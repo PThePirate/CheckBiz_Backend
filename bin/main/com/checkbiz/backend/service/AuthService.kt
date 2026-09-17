@@ -3,15 +3,18 @@ package com.checkbiz.backend.service
 import com.checkbiz.backend.config.JwtService
 import com.checkbiz.backend.config.UsuarioClaims
 import com.checkbiz.backend.domain.ContratoAdhesion
+import com.checkbiz.backend.domain.Notificacion
 import com.checkbiz.backend.domain.Usuario
 import com.checkbiz.backend.domain.VerificacionFoto
 import com.checkbiz.backend.dto.*
 import com.checkbiz.backend.exception.AppException
 import com.checkbiz.backend.repository.ContratoAdhesionRepository
+import com.checkbiz.backend.repository.NotificacionRepository
 import com.checkbiz.backend.repository.UsuarioRepository
 import com.checkbiz.backend.repository.VerificacionFotoRepository
 import com.checkbiz.backend.repository.VetoCedulaRepository
 import com.checkbiz.backend.util.Modulo10
+import com.checkbiz.backend.util.Telefonos
 import org.springframework.http.HttpStatus
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
@@ -25,6 +28,7 @@ class AuthService(
     private val vetoRepository: VetoCedulaRepository,
     private val contratoRepository: ContratoAdhesionRepository,
     private val verificacionFotoRepository: VerificacionFotoRepository,
+    private val notificacionRepository: NotificacionRepository,
     private val otpService: OtpService,
     private val jwtService: JwtService,
     private val passwordEncoder: PasswordEncoder,
@@ -61,7 +65,7 @@ class AuthService(
                 cedula = req.cedula,
                 nombreCompleto = req.nombreCompleto,
                 correo = req.correo,
-                telefono = req.telefono,
+                telefono = Telefonos.combinar(req.pais, req.telefono),
                 passwordHash = passwordEncoder.encode(req.password),
                 aceptoTerminos = true,
                 kycLayer = 1,
@@ -146,6 +150,48 @@ class AuthService(
     fun perfil(usuarioId: UUID): UsuarioResponse =
         usuarioRepository.findById(usuarioId).orElseThrow().aDto()
 
+    @Transactional
+    fun actualizarPerfil(usuarioId: UUID, req: ActualizarPerfilRequest): UsuarioResponse {
+        val usuario = usuarioRepository.findById(usuarioId).orElseThrow()
+        usuario.nombreCompleto = req.nombreCompleto
+        usuario.telefono = req.telefono
+        usuario.actualizadoEn = OffsetDateTime.now()
+        usuarioRepository.save(usuario)
+        return usuario.aDto()
+    }
+
+    // ===================================================================
+    // Notificaciones (A10)
+    // ===================================================================
+    fun listarNotificaciones(usuarioId: UUID): NotificacionesResponse {
+        val items = notificacionRepository.findByUsuarioIdOrderByCreadoEnDesc(usuarioId)
+        return NotificacionesResponse(
+            total = items.size,
+            noLeidas = notificacionRepository.countByUsuarioIdAndLeidaFalse(usuarioId),
+            items = items.map { it.aDto() },
+        )
+    }
+
+    @Transactional
+    fun marcarLeida(usuarioId: UUID, notificacionId: UUID): NotificacionResponse {
+        val notif = notificacionRepository.findById(notificacionId)
+            .orElseThrow { AppException(HttpStatus.NOT_FOUND, "NO_ENCONTRADA", "Notificación no encontrada") }
+        if (notif.usuario?.id != usuarioId) {
+            throw AppException(HttpStatus.FORBIDDEN, "NO_AUTORIZADO", "Esta notificación no te pertenece")
+        }
+        notif.leida = true
+        notificacionRepository.save(notif)
+        return notif.aDto()
+    }
+
+    @Transactional
+    fun marcarTodasLeidas(usuarioId: UUID) {
+        notificacionRepository.findByUsuarioIdAndLeidaFalse(usuarioId).forEach {
+            it.leida = true
+            notificacionRepository.save(it)
+        }
+    }
+
     private fun credencialesInvalidas() =
         AppException(HttpStatus.UNAUTHORIZED, "CREDENCIALES_INVALIDAS", "Correo o contraseña incorrectos")
 }
@@ -170,4 +216,8 @@ fun Usuario.aClaims() = UsuarioClaims(
     rolCliente = rolCliente,
     rolEmprendedor = rolEmprendedor,
     kycLayer = kycLayer,
+)
+
+fun Notificacion.aDto() = NotificacionResponse(
+    id = id!!, tipo = tipo, titulo = titulo, mensaje = mensaje, leida = leida, creadoEn = creadoEn,
 )

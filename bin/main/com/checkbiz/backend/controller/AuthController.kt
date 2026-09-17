@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
+import java.util.UUID
 
 @RestController
 @RequestMapping("/api/auth")
@@ -36,10 +37,17 @@ class AuthController(
 
     @PostMapping("/otp/enviar")
     fun otpEnviar(@RequestBody(required = false) req: OtpEnviarRequest?): Map<String, Any?> {
-        val canal = req?.canal ?: "sms"
+        val canal = req?.canal ?: "email"
         val resultado = authService.enviarOtp(usuarioActual().sub, canal)
+        // Si codigoDev viene presente, estamos en modo desarrollo — no se
+        // envio ningun correo real, y el mensaje debe dejarlo claro (antes
+        // decia siempre "enviado", incluso sin enviar nada).
+        val mensaje = if (resultado.codigoDev != null)
+            "Código de prueba generado. No se ha enviado un correo."
+        else
+            "Código enviado a tu correo"
         return mapOf(
-            "mensaje" to "Código enviado por $canal",
+            "mensaje" to mensaje,
             "expiraEn" to resultado.expiraEn,
             "otp" to resultado.codigoDev?.let { OtpInfo(it) },
         )
@@ -67,4 +75,21 @@ class AuthController(
 
     @GetMapping("/me")
     fun perfil(): Map<String, UsuarioResponse> = mapOf("usuario" to authService.perfil(usuarioActual().sub))
+
+    @PutMapping("/perfil")
+    fun actualizarPerfil(@Valid @RequestBody req: ActualizarPerfilRequest): Map<String, UsuarioResponse> =
+        mapOf("usuario" to authService.actualizarPerfil(usuarioActual().sub, req))
+
+    // --- Notificaciones (A10) ---
+    @GetMapping("/notificaciones")
+    fun listarNotificaciones(): NotificacionesResponse = authService.listarNotificaciones(usuarioActual().sub)
+
+    @PatchMapping("/notificaciones/{id}/leida")
+    fun marcarLeida(@PathVariable id: UUID): NotificacionResponse =
+        authService.marcarLeida(usuarioActual().sub, id)
+
+    @PatchMapping("/notificaciones/leidas-todas")
+    fun marcarTodasLeidas() {
+        authService.marcarTodasLeidas(usuarioActual().sub)
+    }
 }

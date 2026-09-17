@@ -31,6 +31,9 @@ class Usuario(
     @Column(nullable = false, length = 15)
     var telefono: String = "",
 
+    @Column(nullable = false, length = 2)
+    var pais: String = "EC",
+
     @Column(name = "password_hash", nullable = false, columnDefinition = "text")
     var passwordHash: String = "",
 

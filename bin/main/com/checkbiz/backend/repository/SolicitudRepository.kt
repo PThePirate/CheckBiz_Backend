@@ -6,4 +6,8 @@ import java.util.UUID
 
 interface SolicitudRepository : JpaRepository<Solicitud, UUID> {
     fun countByClienteId(clienteId: UUID): Long
+    fun findByClienteIdOrderByCreadoEnDesc(clienteId: UUID): List<Solicitud>
+    fun findByNegocioIdOrderByCreadoEnDesc(negocioId: UUID): List<Solicitud>
+    fun countByNegocioId(negocioId: UUID): Long
+    fun countByNegocioIdAndEstado(negocioId: UUID, estado: String): Long
 }
