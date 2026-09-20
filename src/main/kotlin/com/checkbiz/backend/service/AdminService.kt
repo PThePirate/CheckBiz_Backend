@@ -144,7 +144,7 @@ class AdminService(
     fun obtenerArchivoFoto(verificacionId: UUID): Pair<ByteArray, MediaType> {
         val verificacion = verificacionFotoRepository.findById(verificacionId)
             .orElseThrow { AppException(HttpStatus.NOT_FOUND, "NO_ENCONTRADA", "Verificación no encontrada") }
-        return archivoService.leerFotoVerificacion(verificacion.fotoUrl)
+        return archivoService.leerImagen(verificacion.fotoUrl)
     }
 
     // ===================================================================

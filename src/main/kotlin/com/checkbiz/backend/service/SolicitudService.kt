@@ -1,10 +1,12 @@
 package com.checkbiz.backend.service
 
+import com.checkbiz.backend.domain.Notificacion
 import com.checkbiz.backend.domain.Resena
 import com.checkbiz.backend.domain.Solicitud
 import com.checkbiz.backend.dto.*
 import com.checkbiz.backend.exception.AppException
 import com.checkbiz.backend.repository.NegocioRepository
+import com.checkbiz.backend.repository.NotificacionRepository
 import com.checkbiz.backend.repository.ResenaRepository
 import com.checkbiz.backend.repository.SolicitudRepository
 import com.checkbiz.backend.repository.UsuarioRepository
@@ -21,6 +23,7 @@ class SolicitudService(
     private val usuarioRepository: UsuarioRepository,
     private val resenaRepository: ResenaRepository,
     private val negocioService: NegocioService,
+    private val notificacionRepository: NotificacionRepository,
 ) {
 
     @Transactional
@@ -52,6 +55,16 @@ class SolicitudService(
                 estado = "enviada",
             )
         )
+
+        notificacionRepository.save(
+            Notificacion(
+                usuario = negocio.usuario,
+                tipo = "solicitud",
+                titulo = "Nueva solicitud recibida",
+                mensaje = "${cliente.nombreCompleto}: ${req.descripcion.take(120)}",
+            )
+        )
+
         return solicitud.aResponse()
     }
 

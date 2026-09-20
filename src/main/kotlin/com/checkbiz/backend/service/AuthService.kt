@@ -161,6 +161,18 @@ class AuthService(
     }
 
     // ===================================================================
+    // Foto de perfil (A9)
+    // ===================================================================
+    @Transactional
+    fun actualizarFotoPerfil(usuarioId: UUID, fotoUrl: String): UsuarioResponse {
+        val usuario = usuarioRepository.findById(usuarioId).orElseThrow()
+        usuario.fotoPerfilUrl = fotoUrl
+        usuario.actualizadoEn = OffsetDateTime.now()
+        usuarioRepository.save(usuario)
+        return usuario.aDto()
+    }
+
+    // ===================================================================
     // Notificaciones (A10)
     // ===================================================================
     fun listarNotificaciones(usuarioId: UUID): NotificacionesResponse {
@@ -208,6 +220,7 @@ fun Usuario.aDto() = UsuarioResponse(
     fotoVerificacionEstado = fotoVerificacionEstado,
     senescytSriEstado = senescytSriEstado,
     estadoCedula = estadoCedula,
+    fotoPerfilUrl = fotoPerfilUrl,
     creadoEn = creadoEn,
 )
 

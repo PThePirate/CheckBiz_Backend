@@ -64,6 +64,7 @@ data class UsuarioResponse(
     val fotoVerificacionEstado: String,
     val senescytSriEstado: String,
     val estadoCedula: String,
+    val fotoPerfilUrl: String?,
     val creadoEn: OffsetDateTime,
 )
 

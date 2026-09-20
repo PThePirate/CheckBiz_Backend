@@ -3,12 +3,14 @@ package com.checkbiz.backend.controller
 import com.checkbiz.backend.config.CheckBizAuthenticationToken
 import com.checkbiz.backend.config.UsuarioClaims
 import com.checkbiz.backend.dto.*
+import com.checkbiz.backend.exception.AppException
 import com.checkbiz.backend.service.ArchivoService
 import com.checkbiz.backend.service.AuthService
 import com.checkbiz.backend.util.ipReal
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
+import org.springframework.http.ResponseEntity
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
@@ -60,7 +62,7 @@ class AuthController(
     @PostMapping("/foto", consumes = ["multipart/form-data"])
     @ResponseStatus(HttpStatus.CREATED)
     fun subirFoto(@RequestParam("foto") foto: MultipartFile): Map<String, Any> {
-        val fotoUrl = archivoService.guardarFotoVerificacion(foto)
+        val fotoUrl = archivoService.guardarImagen(foto)
         val verificacion = authService.subirFoto(usuarioActual().sub, fotoUrl)
         return mapOf(
             "mensaje" to "Foto recibida. Tu identidad está en revisión — te avisaremos cuando se apruebe.",
@@ -79,6 +81,21 @@ class AuthController(
     @PutMapping("/perfil")
     fun actualizarPerfil(@Valid @RequestBody req: ActualizarPerfilRequest): Map<String, UsuarioResponse> =
         mapOf("usuario" to authService.actualizarPerfil(usuarioActual().sub, req))
+
+    // --- Foto de perfil (A9) ---
+    @PostMapping("/perfil/foto", consumes = ["multipart/form-data"])
+    fun subirFotoPerfil(@RequestParam("foto") foto: MultipartFile): Map<String, UsuarioResponse> {
+        val fotoUrl = archivoService.guardarImagen(foto)
+        return mapOf("usuario" to authService.actualizarFotoPerfil(usuarioActual().sub, fotoUrl))
+    }
+
+    @GetMapping("/perfil/foto/archivo")
+    fun obtenerFotoPerfil(): ResponseEntity<ByteArray> {
+        val fotoUrl = authService.perfil(usuarioActual().sub).fotoPerfilUrl
+            ?: throw AppException(HttpStatus.NOT_FOUND, "SIN_FOTO_PERFIL", "Todavía no has subido una foto de perfil")
+        val (bytes, tipo) = archivoService.leerImagen(fotoUrl)
+        return ResponseEntity.ok().contentType(tipo).body(bytes)
+    }
 
     // --- Notificaciones (A10) ---
     @GetMapping("/notificaciones")

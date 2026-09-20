@@ -3,6 +3,7 @@ package com.checkbiz.backend.service
 import com.checkbiz.backend.domain.AnaliticaEvento
 import com.checkbiz.backend.domain.CatalogoItem
 import com.checkbiz.backend.domain.Negocio
+import com.checkbiz.backend.domain.Notificacion
 import com.checkbiz.backend.domain.Plan
 import com.checkbiz.backend.domain.QrVerificacion
 import com.checkbiz.backend.domain.Resena
@@ -14,6 +15,7 @@ import com.checkbiz.backend.repository.AnaliticaEventoRepository
 import com.checkbiz.backend.repository.CategoriaRepository
 import com.checkbiz.backend.repository.CatalogoItemRepository
 import com.checkbiz.backend.repository.NegocioRepository
+import com.checkbiz.backend.repository.NotificacionRepository
 import com.checkbiz.backend.repository.PlanRepository
 import com.checkbiz.backend.repository.QrVerificacionRepository
 import com.checkbiz.backend.repository.ResenaRepository
@@ -43,6 +45,7 @@ class NegocioService(
     private val rutaRepository: RutaFormalizacionRepository,
     private val planRepository: PlanRepository,
     private val suscripcionRepository: SuscripcionRepository,
+    private val notificacionRepository: NotificacionRepository,
 ) {
 
     companion object {
@@ -308,6 +311,15 @@ class NegocioService(
         solicitudRepository.save(solicitud)
 
         val cliente = solicitud.cliente!!
+        val tituloNotif = when (nuevoEstado) {
+            "en_conversacion" -> "${negocio.nombreComercial} respondió tu solicitud"
+            "cancelada" -> "${negocio.nombreComercial} canceló tu solicitud"
+            else -> "${negocio.nombreComercial} actualizó tu solicitud"
+        }
+        notificacionRepository.save(
+            Notificacion(usuario = cliente, tipo = "solicitud", titulo = tituloNotif, mensaje = solicitud.descripcion)
+        )
+
         return SolicitudRecibidaResponse(
             id = solicitud.id!!,
             cliente = ClienteResumenResponse(cliente.nombreCompleto, cliente.telefono),

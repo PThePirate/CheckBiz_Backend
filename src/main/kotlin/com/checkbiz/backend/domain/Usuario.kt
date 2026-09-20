@@ -55,6 +55,9 @@ class Usuario(
     @Column(name = "estado_cedula", nullable = false, length = 20)
     var estadoCedula: String = "activa",
 
+    @Column(name = "foto_perfil_url")
+    var fotoPerfilUrl: String? = null,
+
     @Column(name = "acepto_terminos", nullable = false)
     var aceptoTerminos: Boolean = false,
 
