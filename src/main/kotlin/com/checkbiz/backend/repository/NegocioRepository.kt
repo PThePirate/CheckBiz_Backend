@@ -18,17 +18,22 @@ interface NegocioRepository : JpaRepository<Negocio, UUID> {
      * la condición se ignora (patrón ": p IS NULL OR ..." de JPQL). Solo
      * devuelve negocios con estado_publicacion = 'publicado'.
      */
+    // Los parámetros de texto se envuelven en CAST(... AS string) antes de
+    // pasarlos a LOWER/CONCAT: sin el cast, Hibernate no logra resolver el
+    // tipo del parámetro nulo y PostgreSQL termina interpretándolo como
+    // bytea ("function lower(bytea) does not exist"), rompiendo la búsqueda
+    // pública en cuanto algún filtro llega vacío.
     @Query(
         """
         SELECT n FROM Negocio n
         WHERE n.estadoPublicacion = 'publicado'
           AND (:categoriaId IS NULL OR n.categoria.id = :categoriaId)
-          AND (:ciudad IS NULL OR LOWER(n.ciudad) = LOWER(:ciudad))
-          AND (:nivel IS NULL OR n.nivelFormalizacion = :nivel)
+          AND (:ciudad IS NULL OR LOWER(n.ciudad) = LOWER(CAST(:ciudad AS string)))
+          AND (:nivel IS NULL OR n.nivelFormalizacion = CAST(:nivel AS string))
           AND (
                 :texto IS NULL
-                OR LOWER(n.nombreComercial) LIKE LOWER(CONCAT('%', :texto, '%'))
-                OR LOWER(n.descripcionCorta) LIKE LOWER(CONCAT('%', :texto, '%'))
+                OR LOWER(n.nombreComercial) LIKE LOWER(CONCAT('%', CAST(:texto AS string), '%'))
+                OR LOWER(n.descripcionCorta) LIKE LOWER(CONCAT('%', CAST(:texto AS string), '%'))
               )
         ORDER BY n.trustScore DESC, n.creadoEn DESC
         """

@@ -39,6 +39,7 @@ class SolicitudService(
         return solicitud.aResponse()
     }
 
+    @Transactional(readOnly = true)
     fun misSolicitudes(clienteId: UUID): List<SolicitudResponse> =
         solicitudRepository.findByClienteIdOrderByCreadoEnDesc(clienteId).map { it.aResponse() }
 

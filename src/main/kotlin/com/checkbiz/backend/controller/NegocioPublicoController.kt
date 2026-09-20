@@ -1,5 +1,6 @@
 package com.checkbiz.backend.controller
 
+import com.checkbiz.backend.dto.CategoriaResumenResponse
 import com.checkbiz.backend.dto.NegocioPublicoResponse
 import com.checkbiz.backend.dto.NegocioResumenPublicoResponse
 import com.checkbiz.backend.service.NegocioService
@@ -31,6 +32,13 @@ class NegocioPublicoController(private val negocioService: NegocioService) {
 
     @GetMapping("/ciudades-disponibles")
     fun ciudadesDisponibles(): List<String> = negocioService.ciudadesDisponibles()
+
+    // Catálogo maestro de categorías activas — lo usan los filtros de
+    // búsqueda pública (A4/A5), así que no puede exigir sesión. Antes vivía
+    // en NegocioController (privado), lo que devolvía 401 a cualquiera que
+    // no hubiera iniciado sesión.
+    @GetMapping("/categorias-disponibles")
+    fun categoriasDisponibles(): List<CategoriaResumenResponse> = negocioService.categoriasDisponibles()
 
     // A6 — Mini Landing Page pública. Solo devuelve negocios publicados.
     @GetMapping("/publico/{slug}")
