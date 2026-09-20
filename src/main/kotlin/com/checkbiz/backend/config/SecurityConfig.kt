@@ -59,8 +59,10 @@ class SecurityConfig(private val jwtAuthFilter: JwtAuthFilter, private val objec
                         "/api/auth/registro",
                         "/api/auth/login",
                         "/api/admin/login",
+                        "/api/institucional/login",
                     ).permitAll()
                     .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                    .requestMatchers("/api/institucional/**").hasRole("INSTITUCIONAL")
                     .requestMatchers("/api/auth/**").hasRole("USUARIO")
                     .anyRequest().authenticated()
             }

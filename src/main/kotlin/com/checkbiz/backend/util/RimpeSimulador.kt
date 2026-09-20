@@ -20,9 +20,14 @@ object RimpeSimulador {
 
     private val LIMITE_NEGOCIO_POPULAR = BigDecimal("20000")
     private val LIMITE_RIMPE = BigDecimal("300000")
-    private val CUOTA_NEGOCIO_POPULAR = BigDecimal("60.00")
 
-    private const val ADVERTENCIA =
+    // Pública: el dashboard B2G (D2) la reutiliza para proyectar recaudación
+    // sobre negocios formalizados, en vez de duplicar la cifra de referencia.
+    val CUOTA_NEGOCIO_POPULAR = BigDecimal("60.00")
+
+    // Pública (no private) porque el dashboard B2G (D2) reutiliza el mismo
+    // texto para su proyección de recaudación — misma cifra, misma reserva.
+    const val ADVERTENCIA =
         "Estimación referencial para orientarte — no es asesoría tributaria. " +
             "Confirma el monto exacto y vigente con el SRI o tu Consultorio Contable Universitario."
 

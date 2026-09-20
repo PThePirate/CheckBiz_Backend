@@ -53,6 +53,15 @@ class JwtAuthFilter(
                     principalObj = AdminClaims(sub = sub, rol = claims.get("rol", String::class.java) ?: "admin"),
                     authorities = listOf(SimpleGrantedAuthority("ROLE_ADMIN")),
                 )
+                TipoToken.INSTITUCIONAL -> CheckBizAuthenticationToken(
+                    tipo = TipoToken.INSTITUCIONAL,
+                    principalObj = InstitucionalClaims(
+                        sub = sub,
+                        tipo = claims.get("tipoInstitucion", String::class.java) ?: "",
+                        nombreInstitucion = claims.get("nombreInstitucion", String::class.java) ?: "",
+                    ),
+                    authorities = listOf(SimpleGrantedAuthority("ROLE_INSTITUCIONAL")),
+                )
             }
 
             SecurityContextHolder.getContext().authentication = auth

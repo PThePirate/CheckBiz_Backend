@@ -13,7 +13,7 @@ import javax.crypto.SecretKey
  * Tipos de titular de un token, para que cada middleware exija el tipo
  * correcto (un token de admin nunca debe servir como token de usuario).
  */
-enum class TipoToken { USUARIO, ADMIN }
+enum class TipoToken { USUARIO, ADMIN, INSTITUCIONAL }
 
 data class UsuarioClaims(
     val sub: UUID,
@@ -23,6 +23,9 @@ data class UsuarioClaims(
 )
 
 data class AdminClaims(val sub: UUID, val rol: String)
+
+/** tipo: 'universidad' | 'camara_impuestos' | 'camara_negocio' (ver cuentas_institucionales.tipo). */
+data class InstitucionalClaims(val sub: UUID, val tipo: String, val nombreInstitucion: String)
 
 @Component
 class JwtService(
@@ -52,6 +55,17 @@ class JwtService(
             .subject(claims.sub.toString())
             .claim("tipo", TipoToken.ADMIN.name)
             .claim("rol", claims.rol)
+            .issuedAt(Date())
+            .expiration(Date(System.currentTimeMillis() + expirationMs))
+            .signWith(key)
+            .compact()
+
+    fun generarTokenInstitucional(claims: InstitucionalClaims): String =
+        Jwts.builder()
+            .subject(claims.sub.toString())
+            .claim("tipo", TipoToken.INSTITUCIONAL.name)
+            .claim("tipoInstitucion", claims.tipo)
+            .claim("nombreInstitucion", claims.nombreInstitucion)
             .issuedAt(Date())
             .expiration(Date(System.currentTimeMillis() + expirationMs))
             .signWith(key)

@@ -1,6 +1,7 @@
 package com.checkbiz.backend.repository
 
 import com.checkbiz.backend.domain.Negocio
+import com.checkbiz.backend.dto.CategoriaAgregadaResponse
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
@@ -9,6 +10,20 @@ import java.util.UUID
 interface NegocioRepository : JpaRepository<Negocio, UUID> {
     fun countByEstadoPublicacion(estado: String): Long
     fun countByCategoriaId(categoriaId: Int): Long
+    fun countByEstadoPublicacionAndNivelFormalizacion(estado: String, nivel: String): Long
+
+    // D2 — panel B2G. Solo cuenta negocios publicados: nunca se expone la
+    // existencia de negocios en borrador a una cuenta institucional externa.
+    @Query(
+        """
+        SELECT new com.checkbiz.backend.dto.CategoriaAgregadaResponse(c.nombre, COUNT(n))
+        FROM Negocio n JOIN n.categoria c
+        WHERE n.estadoPublicacion = :estado
+        GROUP BY c.nombre
+        ORDER BY COUNT(n) DESC
+        """
+    )
+    fun contarPublicadosPorCategoria(@Param("estado") estado: String): List<CategoriaAgregadaResponse>
     fun findByUsuarioId(usuarioId: UUID): Negocio?
     fun existsBySlug(slug: String): Boolean
     fun findBySlugAndEstadoPublicacion(slug: String, estado: String): Negocio?
