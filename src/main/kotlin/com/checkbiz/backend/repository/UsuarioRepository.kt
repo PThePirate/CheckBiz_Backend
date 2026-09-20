@@ -14,6 +14,12 @@ interface UsuarioRepository : JpaRepository<Usuario, UUID> {
     fun existsByCorreo(correo: String): Boolean
     fun countByKycLayer(kycLayer: Short): Long
 
+    // JwtAuthFilter la usa en cada request para que un veto invalide de
+    // inmediato las sesiones ya emitidas — sin esto, un JWT firmado antes
+    // del veto seguía funcionando hasta que expiraba (hasta 7 días).
+    @Query("SELECT u.estadoCedula FROM Usuario u WHERE u.id = :id")
+    fun estadoCedulaDe(@Param("id") id: UUID): String?
+
     @Query(
         """
         SELECT u FROM Usuario u

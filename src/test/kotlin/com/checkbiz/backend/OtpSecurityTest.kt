@@ -2,6 +2,7 @@ package com.checkbiz.backend
 
 import com.checkbiz.backend.config.*
 import com.checkbiz.backend.controller.AuthController
+import com.checkbiz.backend.repository.UsuarioRepository
 import com.checkbiz.backend.service.ArchivoService
 import com.checkbiz.backend.service.AuthService
 import com.checkbiz.backend.service.OtpService
@@ -24,6 +25,7 @@ class OtpSecurityTest {
     @Autowired lateinit var jwt: JwtService
     @MockBean lateinit var authService: AuthService
     @MockBean lateinit var archivoService: ArchivoService
+    @MockBean lateinit var usuarioRepository: UsuarioRepository
 
     @Test
     fun `sin sesion devuelve 401 con mensaje`() {
@@ -50,10 +52,20 @@ class OtpSecurityTest {
     fun `usuario autenticado puede reenviar codigo de prueba`() {
         val id = UUID.randomUUID()
         val token = jwt.generarTokenUsuario(UsuarioClaims(id, true, false, 1))
+        `when`(usuarioRepository.estadoCedulaDe(id)).thenReturn("activa")
         `when`(authService.enviarOtp(id, "email")).thenReturn(OtpService.EnvioResultado(OffsetDateTime.now().plusMinutes(5), "123456"))
         mvc.perform(post("/api/auth/otp/enviar").header("Authorization", "Bearer $token"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.otp.codigoDev").value("123456"))
             .andExpect(jsonPath("$.mensaje").value("Código de prueba generado. No se ha enviado un correo."))
+    }
+
+    @Test
+    fun `usuario vetado con token todavia vigente es rechazado`() {
+        val id = UUID.randomUUID()
+        val token = jwt.generarTokenUsuario(UsuarioClaims(id, true, false, 1))
+        `when`(usuarioRepository.estadoCedulaDe(id)).thenReturn("vetada")
+        mvc.perform(post("/api/auth/otp/enviar").header("Authorization", "Bearer $token"))
+            .andExpect(status().isUnauthorized)
     }
 }

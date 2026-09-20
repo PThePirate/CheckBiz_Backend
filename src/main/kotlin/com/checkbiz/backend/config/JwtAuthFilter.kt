@@ -1,6 +1,7 @@
 package com.checkbiz.backend.config
 
 import com.checkbiz.backend.exception.ErrorResponse
+import com.checkbiz.backend.repository.UsuarioRepository
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.jsonwebtoken.JwtException
 import jakarta.servlet.FilterChain
@@ -18,6 +19,7 @@ import java.util.UUID
 class JwtAuthFilter(
     private val jwtService: JwtService,
     private val objectMapper: ObjectMapper,
+    private val usuarioRepository: UsuarioRepository,
 ) : OncePerRequestFilter() {
 
     override fun doFilterInternal(
@@ -38,16 +40,27 @@ class JwtAuthFilter(
             val sub = UUID.fromString(claims.subject)
 
             val auth = when (jwtService.tipoDe(claims)) {
-                TipoToken.USUARIO -> CheckBizAuthenticationToken(
-                    tipo = TipoToken.USUARIO,
-                    principalObj = UsuarioClaims(
-                        sub = sub,
-                        rolCliente = claims.get("rolCliente", Boolean::class.javaObjectType) ?: false,
-                        rolEmprendedor = claims.get("rolEmprendedor", Boolean::class.javaObjectType) ?: false,
-                        kycLayer = (claims.get("kycLayer", Int::class.javaObjectType) ?: 1).toShort(),
-                    ),
-                    authorities = listOf(SimpleGrantedAuthority("ROLE_USUARIO")),
-                )
+                TipoToken.USUARIO -> {
+                    // El veto (E4) debe cortar el acceso de inmediato, no
+                    // solo bloquear registro/login nuevos — sin esta
+                    // consulta, un JWT firmado antes del veto seguía
+                    // funcionando hasta que expiraba (hasta 7 días).
+                    val estadoCedula = usuarioRepository.estadoCedulaDe(sub)
+                    if (estadoCedula == null || estadoCedula == "vetada") {
+                        responderNoAutorizado(response, "Esta cuenta ya no tiene acceso")
+                        return
+                    }
+                    CheckBizAuthenticationToken(
+                        tipo = TipoToken.USUARIO,
+                        principalObj = UsuarioClaims(
+                            sub = sub,
+                            rolCliente = claims.get("rolCliente", Boolean::class.javaObjectType) ?: false,
+                            rolEmprendedor = claims.get("rolEmprendedor", Boolean::class.javaObjectType) ?: false,
+                            kycLayer = (claims.get("kycLayer", Int::class.javaObjectType) ?: 1).toShort(),
+                        ),
+                        authorities = listOf(SimpleGrantedAuthority("ROLE_USUARIO")),
+                    )
+                }
                 TipoToken.ADMIN -> CheckBizAuthenticationToken(
                     tipo = TipoToken.ADMIN,
                     principalObj = AdminClaims(sub = sub, rol = claims.get("rol", String::class.java) ?: "admin"),

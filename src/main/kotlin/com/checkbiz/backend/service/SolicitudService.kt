@@ -29,6 +29,22 @@ class SolicitudService(
             ?: throw AppException(HttpStatus.NOT_FOUND, "NO_ENCONTRADO", "Este negocio no existe o no está publicado")
         val cliente = usuarioRepository.findById(clienteId).orElseThrow()
 
+        if (negocio.usuario?.id == clienteId) {
+            throw AppException(
+                HttpStatus.FORBIDDEN, "AUTOSOLICITUD",
+                "No puedes enviarte una solicitud a tu propio negocio"
+            )
+        }
+        // "Reseñas auditadas (solo de compradores verificados con solicitud
+        // real)" — Capa 2 (OTP) es la barra mínima para que una reseña
+        // futura de esta solicitud cuente como de un comprador verificado.
+        if (cliente.kycLayer < 2) {
+            throw AppException(
+                HttpStatus.FORBIDDEN, "COMPRADOR_NO_VERIFICADO",
+                "Verifica tu cuenta (código de 6 dígitos) antes de solicitar un servicio"
+            )
+        }
+
         val solicitud = solicitudRepository.save(
             Solicitud(
                 negocio = negocio, cliente = cliente,
