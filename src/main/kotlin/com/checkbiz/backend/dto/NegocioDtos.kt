@@ -2,6 +2,7 @@ package com.checkbiz.backend.dto
 
 import jakarta.validation.constraints.DecimalMin
 import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Pattern
 import jakarta.validation.constraints.Size
 import java.math.BigDecimal
@@ -189,4 +190,44 @@ data class QrResponse(
 data class EscaneoQrResponse(
     val slug: String,
     val nombreComercial: String,
+)
+
+// ---------------------------------------------------------------------
+// Ruta de Formalización + Simulador RIMPE (B8)
+// ---------------------------------------------------------------------
+data class RequisitoResponse(
+    val requisito: String,
+    val completado: Boolean,
+    val completadoEn: OffsetDateTime?,
+    /** Si es true, el dueño lo marca él mismo (ej. registro ante el SRI) — el sistema no puede verificarlo automáticamente. */
+    val manual: Boolean,
+)
+
+data class NivelProgresoResponse(
+    val nivel: String,
+    val requisitos: List<RequisitoResponse>,
+    val completo: Boolean,
+)
+
+data class RutaFormalizacionResponse(
+    val nivelActual: String,
+    val niveles: List<NivelProgresoResponse>,
+)
+
+data class MarcarRimpeRegistradoRequest(
+    @field:NotNull
+    val completado: Boolean,
+)
+
+data class SimulacionRimpeRequest(
+    @field:NotNull @field:DecimalMin(value = "0.0", inclusive = true)
+    val ingresosAnuales: BigDecimal,
+)
+
+data class SimulacionRimpeResponse(
+    val categoria: String,
+    val cuotaAnualEstimada: BigDecimal?,
+    val requiereFacturaElectronica: Boolean,
+    val mensaje: String,
+    val advertencia: String,
 )

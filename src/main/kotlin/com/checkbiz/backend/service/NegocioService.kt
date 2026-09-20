@@ -5,6 +5,7 @@ import com.checkbiz.backend.domain.CatalogoItem
 import com.checkbiz.backend.domain.Negocio
 import com.checkbiz.backend.domain.QrVerificacion
 import com.checkbiz.backend.domain.Resena
+import com.checkbiz.backend.domain.RutaFormalizacion
 import com.checkbiz.backend.dto.*
 import com.checkbiz.backend.exception.AppException
 import com.checkbiz.backend.repository.AnaliticaEventoRepository
@@ -13,6 +14,7 @@ import com.checkbiz.backend.repository.CatalogoItemRepository
 import com.checkbiz.backend.repository.NegocioRepository
 import com.checkbiz.backend.repository.QrVerificacionRepository
 import com.checkbiz.backend.repository.ResenaRepository
+import com.checkbiz.backend.repository.RutaFormalizacionRepository
 import com.checkbiz.backend.repository.SolicitudRepository
 import com.checkbiz.backend.repository.UsuarioRepository
 import org.springframework.http.HttpStatus
@@ -34,6 +36,7 @@ class NegocioService(
     private val solicitudRepository: SolicitudRepository,
     private val qrRepository: QrVerificacionRepository,
     private val analiticaRepository: AnaliticaEventoRepository,
+    private val rutaRepository: RutaFormalizacionRepository,
 ) {
 
     // ===================================================================
@@ -443,6 +446,106 @@ class NegocioService(
     }
 
     private fun QrVerificacion.aResponse() = QrResponse(codigo = codigo, escaneosTotal = escaneosTotal, creadoEn = creadoEn)
+
+    // ===================================================================
+    // Ruta de Formalización (B8)
+    // ===================================================================
+
+    /**
+     * El único requisito que el sistema no puede verificar por sí mismo:
+     * registrarse en el RIMPE ante el SRI ocurre fuera de la plataforma, sin
+     * integración real con el SRI. El dueño lo marca él mismo con
+     * marcarRimpeRegistrado — todos los demás requisitos se recalculan
+     * siempre desde datos reales, nunca se autoreportan.
+     */
+    private val REQUISITO_RIMPE_REGISTRADO =
+        "Registrarte en el RIMPE ante el SRI y habilitar tu facturación electrónica"
+
+    /**
+     * Evalúa los requisitos de las 3 rutas contra el estado real del
+     * negocio (nunca contra un checkbox que el dueño marque a mano, salvo
+     * el registro RIMPE) y los deja persistidos en ruta_formalizacion.
+     * Si un nivel queda completo, sube nivelFormalizacion — nunca baja,
+     * aun si después dejara de cumplir algún requisito.
+     */
+    @Transactional
+    fun obtenerRutaFormalizacion(usuarioId: UUID): RutaFormalizacionResponse {
+        val negocio = miNegocioOrThrow(usuarioId)
+        val propietario = negocio.usuario!!
+        val existentes = rutaRepository.findByNegocioId(negocio.id!!)
+            .associateBy { it.nivel to it.requisito }
+
+        fun marcar(nivel: String, texto: String, cumplido: Boolean, manual: Boolean = false): RequisitoResponse {
+            val fila = existentes[nivel to texto]
+            val completadoFinal = if (manual) (fila?.completado ?: false) else cumplido
+            val completadoEnFinal = when {
+                fila != null && fila.completado == completadoFinal -> fila.completadoEn
+                completadoFinal -> OffsetDateTime.now()
+                else -> null
+            }
+            when {
+                fila == null -> rutaRepository.save(
+                    RutaFormalizacion(
+                        negocio = negocio, nivel = nivel, requisito = texto,
+                        completado = completadoFinal, completadoEn = completadoEnFinal,
+                    )
+                )
+                fila.completado != completadoFinal -> {
+                    fila.completado = completadoFinal
+                    fila.completadoEn = completadoEnFinal
+                    rutaRepository.save(fila)
+                }
+            }
+            return RequisitoResponse(texto, completadoFinal, completadoEnFinal, manual)
+        }
+
+        val totalCatalogo = catalogoRepository.countByNegocioIdAndActivoTrue(negocio.id!!)
+        val totalSolicitudes = solicitudRepository.countByNegocioId(negocio.id!!)
+        val totalResenas = resenaRepository.countByNegocioId(negocio.id!!)
+
+        val semilla = listOf(
+            marcar("semilla", "Verificar tu identidad completa (Capas 1 a 4)", propietario.kycLayer >= 4),
+            marcar("semilla", "Publicar tu Mini Landing Page", negocio.estadoPublicacion == "publicado"),
+            marcar("semilla", "Agregar al menos un producto o servicio a tu catálogo", totalCatalogo > 0),
+        )
+        val asesoria = listOf(
+            marcar("asesoria", "Recibir tu primera solicitud de un cliente", totalSolicitudes > 0),
+            marcar("asesoria", "Obtener tu primera reseña confirmada", totalResenas > 0),
+            marcar("asesoria", "Alcanzar un Trust Score de al menos 50 puntos", negocio.trustScore >= 50),
+        )
+        val formalizado = listOf(
+            marcar("formalizado", REQUISITO_RIMPE_REGISTRADO, cumplido = false, manual = true),
+            marcar("formalizado", "Mantener un Trust Score de al menos 80 puntos", negocio.trustScore >= 80),
+        )
+
+        if (semilla.all { it.completado } && negocio.nivelFormalizacion == "semilla") {
+            negocio.nivelFormalizacion = "asesoria"
+        }
+        if (asesoria.all { it.completado } && negocio.nivelFormalizacion == "asesoria") {
+            negocio.nivelFormalizacion = "formalizado"
+        }
+        negocioRepository.save(negocio)
+
+        return RutaFormalizacionResponse(
+            nivelActual = negocio.nivelFormalizacion,
+            niveles = listOf(
+                NivelProgresoResponse("semilla", semilla, semilla.all { it.completado }),
+                NivelProgresoResponse("asesoria", asesoria, asesoria.all { it.completado }),
+                NivelProgresoResponse("formalizado", formalizado, formalizado.all { it.completado }),
+            ),
+        )
+    }
+
+    @Transactional
+    fun marcarRimpeRegistrado(usuarioId: UUID, completado: Boolean): RutaFormalizacionResponse {
+        val negocio = miNegocioOrThrow(usuarioId)
+        val fila = rutaRepository.findByNegocioIdAndNivelAndRequisito(negocio.id!!, "formalizado", REQUISITO_RIMPE_REGISTRADO)
+            ?: RutaFormalizacion(negocio = negocio, nivel = "formalizado", requisito = REQUISITO_RIMPE_REGISTRADO)
+        fila.completado = completado
+        fila.completadoEn = if (completado) OffsetDateTime.now() else null
+        rutaRepository.save(fila)
+        return obtenerRutaFormalizacion(usuarioId)
+    }
 
     private fun Resena.aDetalleResponse() = ResenaDetalleResponse(
         id = id!!, clienteNombre = cliente?.nombreCompleto ?: "Cliente",

@@ -4,6 +4,7 @@ import com.checkbiz.backend.config.CheckBizAuthenticationToken
 import com.checkbiz.backend.config.UsuarioClaims
 import com.checkbiz.backend.dto.*
 import com.checkbiz.backend.service.NegocioService
+import com.checkbiz.backend.util.RimpeSimulador
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.context.SecurityContextHolder
@@ -84,4 +85,18 @@ class NegocioController(private val negocioService: NegocioService) {
     // --- QR de verificación física (B11) ---
     @GetMapping("/mio/qr")
     fun obtenerQr(): QrResponse = negocioService.obtenerOCrearQr(usuarioActual().sub)
+
+    // --- Ruta de Formalización + Simulador RIMPE (B8) ---
+    @GetMapping("/mio/formalizacion")
+    fun obtenerFormalizacion(): RutaFormalizacionResponse =
+        negocioService.obtenerRutaFormalizacion(usuarioActual().sub)
+
+    @PatchMapping("/mio/formalizacion/rimpe")
+    fun marcarRimpeRegistrado(@Valid @RequestBody req: MarcarRimpeRegistradoRequest): RutaFormalizacionResponse =
+        negocioService.marcarRimpeRegistrado(usuarioActual().sub, req.completado)
+
+    // Calculadora pura — no depende del negocio del usuario, solo exige sesión.
+    @PostMapping("/rimpe/simular")
+    fun simularRimpe(@Valid @RequestBody req: SimulacionRimpeRequest): SimulacionRimpeResponse =
+        RimpeSimulador.simular(req.ingresosAnuales)
 }
