@@ -1,7 +1,10 @@
 package com.checkbiz.backend.dto
 
 import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.NotNull
+import jakarta.validation.constraints.Pattern
 import java.math.BigDecimal
+import java.time.OffsetDateTime
 import java.util.UUID
 
 // ---------------------------------------------------------------------
@@ -42,4 +45,54 @@ data class DashboardB2GResponse(
     val porCategoria: List<CategoriaAgregadaResponse>,
     val proyeccionRecaudacionAnualEstimada: BigDecimal,
     val advertenciaProyeccion: String,
+)
+
+// ---------------------------------------------------------------------
+// Verificación de alumni (C — Panel B2B Universidades)
+// ---------------------------------------------------------------------
+data class UniversidadResponse(val id: Int, val nombre: String)
+
+data class SolicitarVerificacionAlumniRequest(
+    @field:NotNull
+    val universidadId: Int,
+)
+
+data class VerificacionAlumniResponse(
+    val id: UUID,
+    val universidad: UniversidadResponse,
+    val estado: String,
+    val creadoEn: OffsetDateTime,
+    val verificadoEn: OffsetDateTime?,
+)
+
+// ---------------------------------------------------------------------
+// Dashboard CACES (C2) — agregado por universidad, igual de conservador
+// que D2: solo conteos sobre sus propios alumni ya verificados por ella.
+// ---------------------------------------------------------------------
+data class DashboardCacesResponse(
+    val nombreUniversidad: String,
+    val totalAlumniVerificados: Long,
+    val totalConNegocioPublicado: Long,
+    val porNivel: List<NivelAgregadoResponse>,
+    val trustScorePromedio: Double,
+    val proyeccionRecaudacionAnualEstimada: BigDecimal,
+    val advertenciaProyeccion: String,
+)
+
+// ---------------------------------------------------------------------
+// Seguimiento de alumni (C3) — la única vista institucional que sí
+// muestra un nombre propio: una universidad necesita saber A QUIÉN está
+// verificando como su egresado. Nunca cédula, teléfono ni correo.
+// ---------------------------------------------------------------------
+data class AlumniSeguimientoResponse(
+    val id: UUID,
+    val nombreAlumni: String,
+    val estado: String,
+    val creadoEn: OffsetDateTime,
+    val verificadoEn: OffsetDateTime?,
+)
+
+data class DecidirAlumniRequest(
+    @field:Pattern(regexp = "verificado|rechazado")
+    val estado: String,
 )

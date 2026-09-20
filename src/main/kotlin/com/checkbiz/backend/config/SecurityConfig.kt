@@ -55,6 +55,7 @@ class SecurityConfig(private val jwtAuthFilter: JwtAuthFilter, private val objec
                 auth
                     .requestMatchers("/api/salud").permitAll()
                     .requestMatchers("/api/negocios/**").permitAll()
+                    .requestMatchers("/api/universidades").permitAll()
                     .requestMatchers(
                         "/api/auth/registro",
                         "/api/auth/login",

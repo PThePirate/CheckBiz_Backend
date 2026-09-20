@@ -64,4 +64,16 @@ interface NegocioRepository : JpaRepository<Negocio, UUID> {
         "SELECT DISTINCT n.ciudad FROM Negocio n WHERE n.estadoPublicacion = 'publicado' AND n.ciudad IS NOT NULL ORDER BY n.ciudad ASC"
     )
     fun ciudadesDisponibles(): List<String>
+
+    // C2 — dashboard CACES de una universidad. Solo negocios publicados de
+    // sus propios alumni ya verificados por ELLA MISMA (nunca de otra
+    // institución), para medir conversión a emprendimiento.
+    @Query(
+        """
+        SELECT n FROM Negocio n
+        JOIN AlumniVerificacion a ON a.usuario.id = n.usuario.id
+        WHERE a.universidad.id = :universidadId AND a.estado = 'verificado' AND n.estadoPublicacion = 'publicado'
+        """
+    )
+    fun negociosDeAlumniVerificados(@Param("universidadId") universidadId: Int): List<Negocio>
 }
