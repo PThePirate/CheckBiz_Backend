@@ -252,3 +252,36 @@ data class AnaliticaNegocioResponse(
     val comparativaSemanal: ComparativaResponse,
     val comparativaMensual: ComparativaResponse,
 )
+
+// ---------------------------------------------------------------------
+// Suscripción / Planes (B9)
+// ---------------------------------------------------------------------
+data class PlanResponse(
+    val nombre: String,
+    val precioMensual: BigDecimal,
+    val precioSemestral: BigDecimal,
+    val limiteCatalogo: Short,
+    val incluyeVideo: Boolean,
+    val incluyeAnaliticaAvanzada: Boolean,
+    val incluyeMultiusuario: Boolean,
+    val incluyeTraduccion: Boolean,
+    val incluyeCertificadoPdf: Boolean,
+    val incluyeWhatsappBusinessApi: Boolean,
+)
+
+data class SuscripcionResponse(
+    val plan: PlanResponse,
+    val ciclo: String,
+    val estado: String,
+    val iniciaEn: OffsetDateTime,
+    val venceEn: OffsetDateTime?,
+    val totalCatalogoUsado: Long,
+)
+
+data class CambiarPlanRequest(
+    @field:NotBlank
+    val planNombre: String,
+
+    @field:NotBlank @field:Pattern(regexp = "mensual|semestral")
+    val ciclo: String,
+)

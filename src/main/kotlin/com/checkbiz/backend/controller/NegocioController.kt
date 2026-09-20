@@ -103,4 +103,15 @@ class NegocioController(private val negocioService: NegocioService) {
     // --- Panel de Analítica (B7) ---
     @GetMapping("/mio/analitica")
     fun obtenerAnalitica(): AnaliticaNegocioResponse = negocioService.obtenerAnalitica(usuarioActual().sub)
+
+    // --- Suscripción / Planes (B9) ---
+    @GetMapping("/planes")
+    fun listarPlanes(): List<PlanResponse> = negocioService.listarPlanes()
+
+    @GetMapping("/mio/suscripcion")
+    fun obtenerMiSuscripcion(): SuscripcionResponse = negocioService.obtenerMiSuscripcion(usuarioActual().sub)
+
+    @PostMapping("/mio/suscripcion/checkout")
+    fun cambiarPlan(@Valid @RequestBody req: CambiarPlanRequest): SuscripcionResponse =
+        negocioService.cambiarPlan(usuarioActual().sub, req)
 }

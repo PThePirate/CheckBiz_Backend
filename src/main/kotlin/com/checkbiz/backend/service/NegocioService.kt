@@ -3,19 +3,23 @@ package com.checkbiz.backend.service
 import com.checkbiz.backend.domain.AnaliticaEvento
 import com.checkbiz.backend.domain.CatalogoItem
 import com.checkbiz.backend.domain.Negocio
+import com.checkbiz.backend.domain.Plan
 import com.checkbiz.backend.domain.QrVerificacion
 import com.checkbiz.backend.domain.Resena
 import com.checkbiz.backend.domain.RutaFormalizacion
+import com.checkbiz.backend.domain.Suscripcion
 import com.checkbiz.backend.dto.*
 import com.checkbiz.backend.exception.AppException
 import com.checkbiz.backend.repository.AnaliticaEventoRepository
 import com.checkbiz.backend.repository.CategoriaRepository
 import com.checkbiz.backend.repository.CatalogoItemRepository
 import com.checkbiz.backend.repository.NegocioRepository
+import com.checkbiz.backend.repository.PlanRepository
 import com.checkbiz.backend.repository.QrVerificacionRepository
 import com.checkbiz.backend.repository.ResenaRepository
 import com.checkbiz.backend.repository.RutaFormalizacionRepository
 import com.checkbiz.backend.repository.SolicitudRepository
+import com.checkbiz.backend.repository.SuscripcionRepository
 import com.checkbiz.backend.repository.UsuarioRepository
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -37,7 +41,13 @@ class NegocioService(
     private val qrRepository: QrVerificacionRepository,
     private val analiticaRepository: AnaliticaEventoRepository,
     private val rutaRepository: RutaFormalizacionRepository,
+    private val planRepository: PlanRepository,
+    private val suscripcionRepository: SuscripcionRepository,
 ) {
+
+    companion object {
+        private const val PLAN_GRATUITO = "basico"
+    }
 
     // ===================================================================
     // Negocio (B3)
@@ -76,6 +86,12 @@ class NegocioService(
             )
         )
         negocio.trustScore = recalcularTrustScore(negocio.id!!)
+
+        val planGratuito = planRepository.findByNombre(PLAN_GRATUITO)
+            ?: throw AppException(HttpStatus.INTERNAL_SERVER_ERROR, "PLAN_BASICO_FALTANTE", "No se encontró el plan básico")
+        suscripcionRepository.save(
+            Suscripcion(negocio = negocio, plan = planGratuito, ciclo = "mensual", estado = "activa")
+        )
 
         return negocio.aResponse(0)
     }
@@ -148,6 +164,16 @@ class NegocioService(
     @Transactional
     fun crearItem(usuarioId: UUID, req: CrearItemCatalogoRequest): ItemCatalogoResponse {
         val negocio = miNegocioOrThrow(usuarioId)
+
+        val actuales = catalogoRepository.countByNegocioIdAndActivoTrue(negocio.id!!)
+        val limite = planDe(negocio).limiteCatalogo
+        if (actuales >= limite) {
+            throw AppException(
+                HttpStatus.FORBIDDEN, "LIMITE_CATALOGO_ALCANZADO",
+                "Tu plan actual permite hasta $limite ítems en el catálogo. Mejora tu plan para agregar más."
+            )
+        }
+
         val siguienteOrden = catalogoRepository.findByNegocioIdOrderByOrdenAsc(negocio.id!!).size
 
         val item = catalogoRepository.save(
@@ -520,6 +546,61 @@ class NegocioService(
     }
 
     // ===================================================================
+    // Suscripción / Planes (B9)
+    // ===================================================================
+
+    @Transactional(readOnly = true)
+    fun listarPlanes(): List<PlanResponse> =
+        planRepository.findAllByOrderByPrecioMensualAsc().map { it.aResponse() }
+
+    /** Todo negocio nace con una suscripción básica (ver crear()); esto solo cubre negocios creados antes de B9. */
+    private fun planDe(negocio: Negocio): Plan =
+        suscripcionRepository.findByNegocioId(negocio.id!!)?.plan
+            ?: planRepository.findByNombre(PLAN_GRATUITO)!!
+
+    @Transactional
+    fun obtenerMiSuscripcion(usuarioId: UUID): SuscripcionResponse {
+        val negocio = miNegocioOrThrow(usuarioId)
+        val suscripcion = suscripcionRepository.findByNegocioId(negocio.id!!) ?: suscripcionRepository.save(
+            Suscripcion(
+                negocio = negocio,
+                plan = planRepository.findByNombre(PLAN_GRATUITO)!!,
+                ciclo = "mensual",
+                estado = "activa",
+            )
+        )
+        val totalCatalogo = catalogoRepository.countByNegocioIdAndActivoTrue(negocio.id!!)
+        return suscripcion.aResponse(totalCatalogo)
+    }
+
+    /**
+     * "Checkout" de plan. CheckBiz no procesa dinero (núcleo intocable) —
+     * el cobro real de la suscripción se coordina fuera de la app, igual que
+     * cualquier pago entre las partes. Este endpoint activa el plan elegido
+     * de inmediato, como cualquier cambio de plan self-service.
+     */
+    @Transactional
+    fun cambiarPlan(usuarioId: UUID, req: CambiarPlanRequest): SuscripcionResponse {
+        val negocio = miNegocioOrThrow(usuarioId)
+        val plan = planRepository.findByNombre(req.planNombre)
+            ?: throw AppException(HttpStatus.BAD_REQUEST, "PLAN_INVALIDO", "El plan seleccionado no existe")
+
+        val suscripcion = suscripcionRepository.findByNegocioId(negocio.id!!)
+            ?: Suscripcion(negocio = negocio)
+
+        val meses = if (req.ciclo == "semestral") 6L else 1L
+        suscripcion.plan = plan
+        suscripcion.ciclo = req.ciclo
+        suscripcion.estado = "activa"
+        suscripcion.iniciaEn = OffsetDateTime.now()
+        suscripcion.venceEn = if (plan.nombre == PLAN_GRATUITO) null else OffsetDateTime.now().plusMonths(meses)
+        suscripcionRepository.save(suscripcion)
+
+        val totalCatalogo = catalogoRepository.countByNegocioIdAndActivoTrue(negocio.id!!)
+        return suscripcion.aResponse(totalCatalogo)
+    }
+
+    // ===================================================================
     // Ruta de Formalización (B8)
     // ===================================================================
 
@@ -669,5 +750,18 @@ class NegocioService(
     private fun CatalogoItem.aResponse() = ItemCatalogoResponse(
         id = id!!, nombre = nombre, precioReferencial = precioReferencial,
         fotoUrl = fotoUrl, orden = orden, activo = activo, creadoEn = creadoEn,
+    )
+
+    private fun Plan.aResponse() = PlanResponse(
+        nombre = nombre, precioMensual = precioMensual, precioSemestral = precioSemestral,
+        limiteCatalogo = limiteCatalogo, incluyeVideo = incluyeVideo,
+        incluyeAnaliticaAvanzada = incluyeAnaliticaAvanzada, incluyeMultiusuario = incluyeMultiusuario,
+        incluyeTraduccion = incluyeTraduccion, incluyeCertificadoPdf = incluyeCertificadoPdf,
+        incluyeWhatsappBusinessApi = incluyeWhatsappBusinessApi,
+    )
+
+    private fun Suscripcion.aResponse(totalCatalogoUsado: Long) = SuscripcionResponse(
+        plan = plan!!.aResponse(), ciclo = ciclo, estado = estado,
+        iniciaEn = iniciaEn, venceEn = venceEn, totalCatalogoUsado = totalCatalogoUsado,
     )
 }
