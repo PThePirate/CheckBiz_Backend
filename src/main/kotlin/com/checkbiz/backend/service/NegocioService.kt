@@ -1,19 +1,24 @@
 package com.checkbiz.backend.service
 
+import com.checkbiz.backend.domain.AnaliticaEvento
 import com.checkbiz.backend.domain.CatalogoItem
 import com.checkbiz.backend.domain.Negocio
+import com.checkbiz.backend.domain.QrVerificacion
 import com.checkbiz.backend.domain.Resena
 import com.checkbiz.backend.dto.*
 import com.checkbiz.backend.exception.AppException
+import com.checkbiz.backend.repository.AnaliticaEventoRepository
 import com.checkbiz.backend.repository.CategoriaRepository
 import com.checkbiz.backend.repository.CatalogoItemRepository
 import com.checkbiz.backend.repository.NegocioRepository
+import com.checkbiz.backend.repository.QrVerificacionRepository
 import com.checkbiz.backend.repository.ResenaRepository
 import com.checkbiz.backend.repository.SolicitudRepository
 import com.checkbiz.backend.repository.UsuarioRepository
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.security.SecureRandom
 import java.time.OffsetDateTime
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -27,6 +32,8 @@ class NegocioService(
     private val categoriaRepository: CategoriaRepository,
     private val resenaRepository: ResenaRepository,
     private val solicitudRepository: SolicitudRepository,
+    private val qrRepository: QrVerificacionRepository,
+    private val analiticaRepository: AnaliticaEventoRepository,
 ) {
 
     // ===================================================================
@@ -375,6 +382,67 @@ class NegocioService(
         resenaRepository.save(resena)
         return resena.aDetalleResponse()
     }
+
+    // ===================================================================
+    // QR de verificación física (B11)
+    // ===================================================================
+
+    /**
+     * Devuelve el código del QR del negocio, creándolo la primera vez que
+     * se pide. El código es estable — una vez generado, el dueño puede
+     * imprimirlo y no vuelve a cambiar, así que no tiene sentido regenerarlo
+     * en cada visita a esta pantalla.
+     */
+    @Transactional
+    fun obtenerOCrearQr(usuarioId: UUID): QrResponse {
+        val negocio = miNegocioOrThrow(usuarioId)
+        val existente = qrRepository.findByNegocioId(negocio.id!!)
+        if (existente != null) {
+            return existente.aResponse()
+        }
+
+        val qr = qrRepository.save(QrVerificacion(negocio = negocio, codigo = generarCodigoQr()))
+        return qr.aResponse()
+    }
+
+    /**
+     * Registra un escaneo real del QR físico: sube el contador y deja un
+     * evento en analitica_eventos (misma fuente que alimentará el panel B7),
+     * en la misma transacción para que ambos números no se desincronicen.
+     * Es pública — cualquiera que escanee el QR la dispara sin sesión.
+     */
+    @Transactional
+    fun registrarEscaneoQr(codigo: String): EscaneoQrResponse {
+        val qr = qrRepository.findByCodigo(codigo)
+            ?: throw AppException(HttpStatus.NOT_FOUND, "QR_NO_ENCONTRADO", "Este código QR no es válido")
+
+        qr.escaneosTotal += 1
+        qrRepository.save(qr)
+
+        val negocio = qr.negocio!!
+        analiticaRepository.save(AnaliticaEvento(negocio = negocio, tipoEvento = "escaneo_qr"))
+
+        if (negocio.estadoPublicacion != "publicado") {
+            throw AppException(
+                HttpStatus.NOT_FOUND, "NEGOCIO_NO_PUBLICADO",
+                "Este negocio ya no está disponible públicamente"
+            )
+        }
+
+        return EscaneoQrResponse(slug = negocio.slug, nombreComercial = negocio.nombreComercial)
+    }
+
+    private fun generarCodigoQr(): String {
+        val alfabeto = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // sin 0/O/1/I para evitar confusión al transcribir
+        val random = SecureRandom()
+        var codigo: String
+        do {
+            codigo = (1..10).map { alfabeto[random.nextInt(alfabeto.length)] }.joinToString("")
+        } while (qrRepository.existsByCodigo(codigo))
+        return codigo
+    }
+
+    private fun QrVerificacion.aResponse() = QrResponse(codigo = codigo, escaneosTotal = escaneosTotal, creadoEn = creadoEn)
 
     private fun Resena.aDetalleResponse() = ResenaDetalleResponse(
         id = id!!, clienteNombre = cliente?.nombreCompleto ?: "Cliente",

@@ -80,4 +80,8 @@ class NegocioController(private val negocioService: NegocioService) {
     fun eliminarItem(@PathVariable id: UUID) {
         negocioService.eliminarItem(usuarioActual().sub, id)
     }
+
+    // --- QR de verificación física (B11) ---
+    @GetMapping("/mio/qr")
+    fun obtenerQr(): QrResponse = negocioService.obtenerOCrearQr(usuarioActual().sub)
 }

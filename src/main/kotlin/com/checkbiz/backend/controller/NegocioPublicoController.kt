@@ -1,11 +1,13 @@
 package com.checkbiz.backend.controller
 
 import com.checkbiz.backend.dto.CategoriaResumenResponse
+import com.checkbiz.backend.dto.EscaneoQrResponse
 import com.checkbiz.backend.dto.NegocioPublicoResponse
 import com.checkbiz.backend.dto.NegocioResumenPublicoResponse
 import com.checkbiz.backend.service.NegocioService
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
@@ -44,4 +46,10 @@ class NegocioPublicoController(private val negocioService: NegocioService) {
     @GetMapping("/publico/{slug}")
     fun obtenerPorSlug(@PathVariable slug: String): NegocioPublicoResponse =
         negocioService.obtenerPublicoPorSlug(slug)
+
+    // B11 — el frontend llama esto justo al abrir /qr/{codigo} (lo que
+    // escanea el QR físico), antes de redirigir a la Mini Landing Page.
+    @PostMapping("/qr/{codigo}/escaneo")
+    fun registrarEscaneoQr(@PathVariable codigo: String): EscaneoQrResponse =
+        negocioService.registrarEscaneoQr(codigo)
 }

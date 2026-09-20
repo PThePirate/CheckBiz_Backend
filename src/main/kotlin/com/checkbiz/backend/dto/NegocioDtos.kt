@@ -168,3 +168,25 @@ data class NegocioResumenPublicoResponse(
     val trustScore: Short,
     val nivelFormalizacion: String,
 )
+
+// ---------------------------------------------------------------------
+// QR de verificación física (B11)
+// ---------------------------------------------------------------------
+
+/**
+ * El código es estable mientras exista el negocio — no cambia entre
+ * consultas, así el dueño puede imprimirlo una sola vez. El frontend arma
+ * la URL completa que va dentro del QR (origen + /qr/{codigo}); el backend
+ * solo entrega el código para no acoplarse a un dominio fijo.
+ */
+data class QrResponse(
+    val codigo: String,
+    val escaneosTotal: Int,
+    val creadoEn: OffsetDateTime,
+)
+
+/** Lo que necesita el frontend para redirigir tras registrar el escaneo. */
+data class EscaneoQrResponse(
+    val slug: String,
+    val nombreComercial: String,
+)
