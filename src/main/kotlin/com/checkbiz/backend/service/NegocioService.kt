@@ -188,10 +188,16 @@ class NegocioService(
     // ===================================================================
     // Perfil público (A6 — Mini Landing Page)
     // ===================================================================
-    @Transactional(readOnly = true)
+    // Ya no es readOnly: cada carga real de la Mini Landing deja un evento
+    // "visita_perfil" (B7) — la única fuente de verdad de "visitas al
+    // perfil" del panel de analítica es esta misma llamada, nunca un
+    // contador aparte que se pueda desincronizar.
+    @Transactional
     fun obtenerPublicoPorSlug(slug: String): NegocioPublicoResponse {
         val negocio = negocioRepository.findBySlugAndEstadoPublicacion(slug, "publicado")
             ?: throw AppException(HttpStatus.NOT_FOUND, "NO_ENCONTRADO", "Este negocio no existe o no está publicado")
+
+        analiticaRepository.save(AnaliticaEvento(negocio = negocio, tipoEvento = "visita_perfil"))
 
         val propietario = negocio.usuario!!
         val capas = listOf(
@@ -446,6 +452,72 @@ class NegocioService(
     }
 
     private fun QrVerificacion.aResponse() = QrResponse(codigo = codigo, escaneosTotal = escaneosTotal, creadoEn = creadoEn)
+
+    // ===================================================================
+    // Panel de Analítica (B7)
+    // ===================================================================
+
+    /** Público — lo dispara el frontend justo al abrir el enlace de WhatsApp de la Mini Landing Page. */
+    @Transactional
+    fun registrarClicWhatsapp(slug: String) {
+        val negocio = negocioRepository.findBySlugAndEstadoPublicacion(slug, "publicado")
+            ?: throw AppException(HttpStatus.NOT_FOUND, "NO_ENCONTRADO", "Este negocio no existe o no está publicado")
+        analiticaRepository.save(AnaliticaEvento(negocio = negocio, tipoEvento = "clic_whatsapp"))
+    }
+
+    @Transactional(readOnly = true)
+    fun obtenerAnalitica(usuarioId: UUID): AnaliticaNegocioResponse {
+        val negocio = miNegocioOrThrow(usuarioId)
+        val negocioId = negocio.id!!
+        val ahora = OffsetDateTime.now()
+
+        val totalVisitas = analiticaRepository.countByNegocioIdAndTipoEvento(negocioId, "visita_perfil")
+        val totalClicsWhatsapp = analiticaRepository.countByNegocioIdAndTipoEvento(negocioId, "clic_whatsapp")
+        val tasaConversion = if (totalVisitas > 0) totalClicsWhatsapp.toDouble() / totalVisitas else 0.0
+
+        val hace7 = ahora.minusDays(7)
+        val hace14 = ahora.minusDays(14)
+        val hace30 = ahora.minusDays(30)
+        val hace60 = ahora.minusDays(60)
+
+        val comparativaSemanal = comparar(
+            analiticaRepository.countByNegocioIdAndTipoEventoAndCreadoEnBetween(negocioId, "visita_perfil", hace7, ahora),
+            analiticaRepository.countByNegocioIdAndTipoEventoAndCreadoEnBetween(negocioId, "visita_perfil", hace14, hace7),
+        )
+        val comparativaMensual = comparar(
+            analiticaRepository.countByNegocioIdAndTipoEventoAndCreadoEnBetween(negocioId, "visita_perfil", hace30, ahora),
+            analiticaRepository.countByNegocioIdAndTipoEventoAndCreadoEnBetween(negocioId, "visita_perfil", hace60, hace30),
+        )
+
+        val eventosRecientes = analiticaRepository.findByNegocioIdAndTipoEventoInAndCreadoEnAfter(
+            negocioId, listOf("visita_perfil", "clic_whatsapp"), hace30
+        )
+        val porDia = eventosRecientes.groupBy { it.creadoEn.toLocalDate() }
+        val hoy = ahora.toLocalDate()
+        val serie = (29 downTo 0).map { hace ->
+            val dia = hoy.minusDays(hace.toLong())
+            val delDia = porDia[dia] ?: emptyList()
+            PuntoSerieResponse(
+                fecha = dia.toString(),
+                visitas = delDia.count { it.tipoEvento == "visita_perfil" }.toLong(),
+                clicsWhatsapp = delDia.count { it.tipoEvento == "clic_whatsapp" }.toLong(),
+            )
+        }
+
+        return AnaliticaNegocioResponse(
+            totalVisitas = totalVisitas,
+            totalClicsWhatsapp = totalClicsWhatsapp,
+            tasaConversion = tasaConversion,
+            serieDiaria = serie,
+            comparativaSemanal = comparativaSemanal,
+            comparativaMensual = comparativaMensual,
+        )
+    }
+
+    private fun comparar(actual: Long, anterior: Long): ComparativaResponse {
+        val variacion = if (anterior == 0L) null else ((actual - anterior).toDouble() / anterior) * 100
+        return ComparativaResponse(periodoActual = actual, periodoAnterior = anterior, variacionPorcentual = variacion)
+    }
 
     // ===================================================================
     // Ruta de Formalización (B8)

@@ -99,4 +99,8 @@ class NegocioController(private val negocioService: NegocioService) {
     @PostMapping("/rimpe/simular")
     fun simularRimpe(@Valid @RequestBody req: SimulacionRimpeRequest): SimulacionRimpeResponse =
         RimpeSimulador.simular(req.ingresosAnuales)
+
+    // --- Panel de Analítica (B7) ---
+    @GetMapping("/mio/analitica")
+    fun obtenerAnalitica(): AnaliticaNegocioResponse = negocioService.obtenerAnalitica(usuarioActual().sub)
 }

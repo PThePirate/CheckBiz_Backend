@@ -231,3 +231,24 @@ data class SimulacionRimpeResponse(
     val mensaje: String,
     val advertencia: String,
 )
+
+// ---------------------------------------------------------------------
+// Panel de Analítica (B7)
+// ---------------------------------------------------------------------
+data class PuntoSerieResponse(val fecha: String, val visitas: Long, val clicsWhatsapp: Long)
+
+data class ComparativaResponse(
+    val periodoActual: Long,
+    val periodoAnterior: Long,
+    /** null cuando el período anterior fue 0 — no hay base sobre la cual calcular un %. */
+    val variacionPorcentual: Double?,
+)
+
+data class AnaliticaNegocioResponse(
+    val totalVisitas: Long,
+    val totalClicsWhatsapp: Long,
+    val tasaConversion: Double,
+    val serieDiaria: List<PuntoSerieResponse>,
+    val comparativaSemanal: ComparativaResponse,
+    val comparativaMensual: ComparativaResponse,
+)

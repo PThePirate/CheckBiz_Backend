@@ -43,9 +43,16 @@ class NegocioPublicoController(private val negocioService: NegocioService) {
     fun categoriasDisponibles(): List<CategoriaResumenResponse> = negocioService.categoriasDisponibles()
 
     // A6 — Mini Landing Page pública. Solo devuelve negocios publicados.
+    // Cada llamada real cuenta como una visita al perfil (B7).
     @GetMapping("/publico/{slug}")
     fun obtenerPorSlug(@PathVariable slug: String): NegocioPublicoResponse =
         negocioService.obtenerPublicoPorSlug(slug)
+
+    // B7 — el frontend lo llama justo al abrir el enlace de WhatsApp desde A6.
+    @PostMapping("/publico/{slug}/clic-whatsapp")
+    fun registrarClicWhatsapp(@PathVariable slug: String) {
+        negocioService.registrarClicWhatsapp(slug)
+    }
 
     // B11 — el frontend llama esto justo al abrir /qr/{codigo} (lo que
     // escanea el QR físico), antes de redirigir a la Mini Landing Page.
