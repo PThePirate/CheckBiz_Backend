@@ -11,6 +11,7 @@ import com.checkbiz.backend.exception.AppException
 import com.checkbiz.backend.repository.*
 import org.springframework.data.domain.PageRequest
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -33,6 +34,7 @@ class AdminService(
     private val denunciaRepository: DenunciaRepository,
     private val jwtService: JwtService,
     private val passwordEncoder: PasswordEncoder,
+    private val archivoService: ArchivoService,
 ) {
 
     // ===================================================================
@@ -55,6 +57,12 @@ class AdminService(
     // ===================================================================
     // KYC (E2) — sin cambios de lógica, ya estaba probado
     // ===================================================================
+    // readOnly=true mantiene la sesión de Hibernate abierta mientras se
+    // recorre la lista y se toca v.usuario (LAZY) — sin esto, con
+    // open-in-view: false, la petición completa fallaba con
+    // LazyInitializationException ("no session") apenas había una foto
+    // pendiente que revisar.
+    @Transactional(readOnly = true)
     fun listarFotosPendientes(estado: String): ColaFotosResponse {
         val estadoValido = if (estado in listOf("en_revision", "aprobada", "rechazada")) estado else "en_revision"
         val items = verificacionFotoRepository.findByEstadoOrderByCreadoEnAsc(estadoValido)
@@ -127,6 +135,16 @@ class AdminService(
             motivoRechazo = verificacion.motivoRechazo,
             creadoEn = verificacion.creadoEn,
         )
+    }
+
+    // Sirve el archivo real de una foto de verificación (E2). Antes se
+    // exponía como estático público en /uploads/**; ahora solo un admin
+    // autenticado puede pedirla, y siempre por su id de verificación (no
+    // por nombre de archivo adivinable).
+    fun obtenerArchivoFoto(verificacionId: UUID): Pair<ByteArray, MediaType> {
+        val verificacion = verificacionFotoRepository.findById(verificacionId)
+            .orElseThrow { AppException(HttpStatus.NOT_FOUND, "NO_ENCONTRADA", "Verificación no encontrada") }
+        return archivoService.leerFotoVerificacion(verificacion.fotoUrl)
     }
 
     // ===================================================================

@@ -3,6 +3,7 @@ package com.checkbiz.backend.service
 import com.checkbiz.backend.exception.AppException
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
 import java.nio.file.Files
@@ -37,5 +38,32 @@ class ArchivoService(
         file.transferTo(destino)
 
         return "/uploads/$nombre"
+    }
+
+    /**
+     * Lee del disco una foto de verificación ya guardada. Estas fotos
+     * (selfie + cédula) son datos sensibles y nunca se sirven como archivo
+     * estático público — solo a través de un endpoint autenticado que
+     * primero valida que quien pide sea el dueño o un admin.
+     *
+     * Se usa fileName() sobre la URL guardada para quedarnos solo con el
+     * nombre del archivo, así una "fotoUrl" con "../" no puede escapar del
+     * directorio de subidas.
+     */
+    fun leerFotoVerificacion(fotoUrl: String): Pair<ByteArray, MediaType> {
+        val baseDir = Path.of(uploadsDir).toAbsolutePath().normalize()
+        val nombre = Path.of(fotoUrl).fileName.toString()
+        val archivo = baseDir.resolve(nombre).normalize()
+
+        if (!archivo.startsWith(baseDir) || !Files.exists(archivo)) {
+            throw AppException(HttpStatus.NOT_FOUND, "ARCHIVO_NO_ENCONTRADO", "El archivo no existe")
+        }
+
+        val tipo = when {
+            nombre.endsWith(".png") -> MediaType.IMAGE_PNG
+            nombre.endsWith(".webp") -> MediaType.parseMediaType("image/webp")
+            else -> MediaType.IMAGE_JPEG
+        }
+        return Files.readAllBytes(archivo) to tipo
     }
 }

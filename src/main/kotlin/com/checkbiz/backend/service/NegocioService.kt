@@ -70,6 +70,10 @@ class NegocioService(
         return negocio.aResponse(0)
     }
 
+    // Sin transacción de lectura, aResponse() falla al tocar relaciones
+    // LAZY del negocio (categoría, catálogo) porque open-in-view está
+    // apagado y la sesión de Hibernate ya se cerró.
+    @Transactional(readOnly = true)
     fun obtenerMiNegocio(usuarioId: UUID): NegocioResponse {
         val negocio = negocioRepository.findByUsuarioId(usuarioId)
             ?: throw AppException(HttpStatus.NOT_FOUND, "SIN_NEGOCIO", "Todavía no has creado tu negocio")
@@ -174,6 +178,7 @@ class NegocioService(
     // ===================================================================
     // Perfil público (A6 — Mini Landing Page)
     // ===================================================================
+    @Transactional(readOnly = true)
     fun obtenerPublicoPorSlug(slug: String): NegocioPublicoResponse {
         val negocio = negocioRepository.findBySlugAndEstadoPublicacion(slug, "publicado")
             ?: throw AppException(HttpStatus.NOT_FOUND, "NO_ENCONTRADO", "Este negocio no existe o no está publicado")
@@ -226,6 +231,7 @@ class NegocioService(
     // ===================================================================
     // Bandeja de solicitudes (B5)
     // ===================================================================
+    @Transactional(readOnly = true)
     fun misSolicitudesRecibidas(usuarioId: UUID): List<SolicitudRecibidaResponse> {
         val negocio = miNegocioOrThrow(usuarioId)
         return solicitudRepository.findByNegocioIdOrderByCreadoEnDesc(negocio.id!!).map { s ->

@@ -6,6 +6,7 @@ import com.checkbiz.backend.dto.*
 import com.checkbiz.backend.service.AdminService
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
+import org.springframework.http.ResponseEntity
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.web.bind.annotation.*
 import java.util.UUID
@@ -33,6 +34,15 @@ class AdminController(private val adminService: AdminService) {
         @PathVariable id: UUID,
         @Valid @RequestBody req: DecisionFotoRequest,
     ): VerificacionFotoResponse = adminService.decidirFoto(id, adminActual().sub, req)
+
+    // Archivo real de la foto (selfie + cédula). Antes vivía en
+    // /uploads/**, servido públicamente sin autenticación; ahora exige
+    // rol ADMIN (ya cubierto por /api/admin/** en SecurityConfig).
+    @GetMapping("/kyc/fotos/{id}/archivo")
+    fun obtenerArchivoFoto(@PathVariable id: UUID): ResponseEntity<ByteArray> {
+        val (bytes, tipo) = adminService.obtenerArchivoFoto(id)
+        return ResponseEntity.ok().contentType(tipo).body(bytes)
+    }
 
     // --- Veto por cédula (E4) ---
     @PostMapping("/veto")

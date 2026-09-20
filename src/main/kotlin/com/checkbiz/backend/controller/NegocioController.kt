@@ -80,8 +80,4 @@ class NegocioController(private val negocioService: NegocioService) {
     fun eliminarItem(@PathVariable id: UUID) {
         negocioService.eliminarItem(usuarioActual().sub, id)
     }
-
-    // --- Catálogo maestro de categorías (para el selector del editor) ---
-    @GetMapping("/categorias-disponibles")
-    fun categoriasDisponibles(): List<CategoriaResumenResponse> = negocioService.categoriasDisponibles()
 }
