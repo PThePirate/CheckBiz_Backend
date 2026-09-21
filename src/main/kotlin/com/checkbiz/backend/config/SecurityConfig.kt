@@ -59,6 +59,8 @@ class SecurityConfig(private val jwtAuthFilter: JwtAuthFilter, private val objec
                     .requestMatchers(
                         "/api/auth/registro",
                         "/api/auth/login",
+                        "/api/auth/password/recuperar",
+                        "/api/auth/password/restablecer",
                         "/api/admin/login",
                         "/api/institucional/login",
                     ).permitAll()

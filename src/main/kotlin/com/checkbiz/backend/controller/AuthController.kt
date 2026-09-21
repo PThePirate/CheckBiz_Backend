@@ -82,6 +82,31 @@ class AuthController(
     fun actualizarPerfil(@Valid @RequestBody req: ActualizarPerfilRequest): Map<String, UsuarioResponse> =
         mapOf("usuario" to authService.actualizarPerfil(usuarioActual().sub, req))
 
+    // --- Cuenta / Seguridad (B12) ---
+    @PatchMapping("/password")
+    fun cambiarPassword(@Valid @RequestBody req: CambiarPasswordRequest) {
+        authService.cambiarPassword(usuarioActual().sub, req)
+    }
+
+    @PostMapping("/password/recuperar")
+    fun recuperarPassword(@Valid @RequestBody req: RecuperarPasswordRequest): Map<String, Any?> {
+        val resultado = authService.recuperarPassword(req.correo)
+        return mapOf(
+            "mensaje" to "Si el correo existe en CheckBiz, te enviamos un código de recuperación.",
+            "otp" to resultado?.codigoDev?.let { OtpInfo(it) },
+        )
+    }
+
+    @PostMapping("/password/restablecer")
+    fun restablecerPassword(@Valid @RequestBody req: RestablecerPasswordRequest) {
+        authService.restablecerPassword(req)
+    }
+
+    @DeleteMapping("/cuenta")
+    fun eliminarCuenta(@Valid @RequestBody req: EliminarCuentaRequest) {
+        authService.eliminarCuenta(usuarioActual().sub, req)
+    }
+
     // --- Foto de perfil (A9) ---
     @PostMapping("/perfil/foto", consumes = ["multipart/form-data"])
     fun subirFotoPerfil(@RequestParam("foto") foto: MultipartFile): Map<String, UsuarioResponse> {

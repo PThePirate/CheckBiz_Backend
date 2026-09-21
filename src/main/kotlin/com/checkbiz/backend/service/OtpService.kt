@@ -91,4 +91,57 @@ class OtpService(
             usuarioRepository.save(usuario)
         }
     }
+
+    // ===================================================================
+    // Recuperación de contraseña (B12) — canal propio, nunca toca kycLayer.
+    // ===================================================================
+    @Transactional
+    fun enviarRecuperacion(usuario: Usuario): EnvioResultado {
+        val codigo = (100_000 + random.nextInt(900_000)).toString()
+        val expiraEn = OffsetDateTime.now().plusMinutes(TTL_MINUTOS)
+
+        otpRepository.save(
+            OtpVerificacion(usuario = usuario, codigo = codigo, canal = "recuperacion", expiraEn = expiraEn)
+        )
+
+        if (devMode) {
+            return EnvioResultado(expiraEn = expiraEn, codigoDev = codigo)
+        }
+
+        emailService.enviar(
+            destinatario = usuario.correo,
+            asunto = "Recupera tu contraseña de CheckBiz",
+            cuerpoHtml = """
+                <p>Hola ${usuario.nombreCompleto},</p>
+                <p>Usa este código para restablecer tu contraseña:</p>
+                <p style="font-size: 28px; font-weight: bold; letter-spacing: 4px;">$codigo</p>
+                <p>Vence en 5 minutos. Si no fuiste tú, ignora este correo — tu contraseña actual sigue siendo válida.</p>
+            """.trimIndent(),
+        )
+        return EnvioResultado(expiraEn = expiraEn, codigoDev = null)
+    }
+
+    @Transactional
+    fun verificarRecuperacion(usuarioId: UUID, codigo: String) {
+        val otp = otpRepository
+            .findFirstByUsuarioIdAndCanalAndVerificadoFalseOrderByCreadoEnDesc(usuarioId, "recuperacion")
+            .orElseThrow {
+                AppException(HttpStatus.BAD_REQUEST, "OTP_NO_ENCONTRADO", "No hay un código de recuperación pendiente. Solicita uno nuevo.")
+            }
+
+        if (otp.expiraEn.isBefore(OffsetDateTime.now())) {
+            throw AppException(HttpStatus.BAD_REQUEST, "OTP_EXPIRADO", "El código expiró. Solicita uno nuevo.")
+        }
+        if (otp.intentos >= MAX_INTENTOS) {
+            throw AppException(HttpStatus.TOO_MANY_REQUESTS, "OTP_MAX_INTENTOS", "Demasiados intentos. Solicita un código nuevo.")
+        }
+        if (otp.codigo != codigo) {
+            otp.intentos = (otp.intentos + 1).toShort()
+            otpRepository.save(otp)
+            throw AppException(HttpStatus.BAD_REQUEST, "OTP_INCORRECTO", "El código no es correcto")
+        }
+
+        otp.verificado = true
+        otpRepository.save(otp)
+    }
 }

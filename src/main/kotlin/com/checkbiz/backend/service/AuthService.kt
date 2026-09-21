@@ -161,6 +161,56 @@ class AuthService(
     }
 
     // ===================================================================
+    // Cuenta / Seguridad (B12)
+    // ===================================================================
+    @Transactional
+    fun cambiarPassword(usuarioId: UUID, req: CambiarPasswordRequest) {
+        val usuario = usuarioRepository.findById(usuarioId).orElseThrow()
+        if (!passwordEncoder.matches(req.passwordActual, usuario.passwordHash)) {
+            throw AppException(HttpStatus.BAD_REQUEST, "PASSWORD_INCORRECTA", "Tu contraseña actual no es correcta")
+        }
+        usuario.passwordHash = passwordEncoder.encode(req.passwordNueva)
+        usuario.actualizadoEn = OffsetDateTime.now()
+        usuarioRepository.save(usuario)
+    }
+
+    /** Nunca revela si el correo existe — misma respuesta genérica en ambos casos (evita enumeración de cuentas). */
+    @Transactional
+    fun recuperarPassword(correo: String): OtpService.EnvioResultado? {
+        val usuario = usuarioRepository.findByCorreo(correo).orElse(null) ?: return null
+        if (usuario.estadoCedula != "activa") return null
+        return otpService.enviarRecuperacion(usuario)
+    }
+
+    @Transactional
+    fun restablecerPassword(req: RestablecerPasswordRequest) {
+        val usuario = usuarioRepository.findByCorreo(req.correo).orElseThrow {
+            AppException(HttpStatus.BAD_REQUEST, "SOLICITUD_INVALIDA", "Código o correo inválido")
+        }
+        otpService.verificarRecuperacion(usuario.id!!, req.codigo)
+        usuario.passwordHash = passwordEncoder.encode(req.passwordNueva)
+        usuario.actualizadoEn = OffsetDateTime.now()
+        usuarioRepository.save(usuario)
+    }
+
+    /**
+     * Desactiva la cuenta en vez de borrarla — un usuario puede tener
+     * negocios, reseñas y solicitudes que otras personas siguen necesitando
+     * ver. Reutiliza el mismo corte de sesión inmediato que el veto (E4):
+     * el filtro JWT bloquea cualquier estado_cedula distinto de "activa".
+     */
+    @Transactional
+    fun eliminarCuenta(usuarioId: UUID, req: EliminarCuentaRequest) {
+        val usuario = usuarioRepository.findById(usuarioId).orElseThrow()
+        if (!passwordEncoder.matches(req.password, usuario.passwordHash)) {
+            throw AppException(HttpStatus.BAD_REQUEST, "PASSWORD_INCORRECTA", "Tu contraseña no es correcta")
+        }
+        usuario.estadoCedula = "eliminada"
+        usuario.actualizadoEn = OffsetDateTime.now()
+        usuarioRepository.save(usuario)
+    }
+
+    // ===================================================================
     // Foto de perfil (A9)
     // ===================================================================
     @Transactional

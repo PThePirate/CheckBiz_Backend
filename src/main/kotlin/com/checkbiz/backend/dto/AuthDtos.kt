@@ -96,6 +96,38 @@ data class ActualizarPerfilRequest(
 )
 
 // ---------------------------------------------------------------------
+// Cuenta / Seguridad (B12)
+// ---------------------------------------------------------------------
+data class CambiarPasswordRequest(
+    @field:NotBlank
+    val passwordActual: String,
+
+    @field:NotBlank @field:Size(min = 8, max = 80, message = "Debe tener al menos 8 caracteres")
+    val passwordNueva: String,
+)
+
+data class RecuperarPasswordRequest(
+    @field:NotBlank @field:Email
+    val correo: String,
+)
+
+data class RestablecerPasswordRequest(
+    @field:NotBlank @field:Email
+    val correo: String,
+
+    @field:NotBlank @field:Size(min = 6, max = 6)
+    val codigo: String,
+
+    @field:NotBlank @field:Size(min = 8, max = 80, message = "Debe tener al menos 8 caracteres")
+    val passwordNueva: String,
+)
+
+data class EliminarCuentaRequest(
+    @field:NotBlank
+    val password: String,
+)
+
+// ---------------------------------------------------------------------
 // Notificaciones (A10)
 // ---------------------------------------------------------------------
 data class NotificacionResponse(
