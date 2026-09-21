@@ -31,6 +31,7 @@ class InstitucionalService(
     private val negocioRepository: NegocioRepository,
     private val universidadRepository: UniversidadRepository,
     private val alumniVerificacionRepository: AlumniVerificacionRepository,
+    private val negocioService: NegocioService,
     private val jwtService: JwtService,
     private val passwordEncoder: PasswordEncoder,
 ) {
@@ -140,6 +141,12 @@ class InstitucionalService(
         verificacion.estado = estado
         if (estado == "verificado") verificacion.verificadoEn = OffsetDateTime.now()
         alumniVerificacionRepository.save(verificacion)
+
+        // La insignia "Alumni Verificado" (B10) depende de este estado —
+        // si el egresado ya tiene un negocio, se reevalúa de inmediato.
+        if (estado == "verificado") {
+            negocioRepository.findByUsuarioId(verificacion.usuario!!.id!!)?.let { negocioService.actualizarInsignias(it.id!!) }
+        }
 
         return verificacion.aSeguimientoResponse()
     }

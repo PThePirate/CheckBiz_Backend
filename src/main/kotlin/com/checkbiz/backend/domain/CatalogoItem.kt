@@ -28,6 +28,9 @@ class CatalogoItem(
     @Column(name = "foto_url", columnDefinition = "text")
     var fotoUrl: String? = null,
 
+    @Column(name = "nombre_en", length = 120)
+    var nombreEn: String? = null,
+
     @Column(nullable = false)
     var orden: Short = 0,
 

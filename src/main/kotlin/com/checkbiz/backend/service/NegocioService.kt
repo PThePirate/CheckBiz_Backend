@@ -3,6 +3,8 @@ package com.checkbiz.backend.service
 import com.checkbiz.backend.domain.AnaliticaEvento
 import com.checkbiz.backend.domain.CatalogoItem
 import com.checkbiz.backend.domain.Negocio
+import com.checkbiz.backend.domain.NegocioInsignia
+import com.checkbiz.backend.domain.NegocioInsigniaId
 import com.checkbiz.backend.domain.Notificacion
 import com.checkbiz.backend.domain.Plan
 import com.checkbiz.backend.domain.QrVerificacion
@@ -11,9 +13,12 @@ import com.checkbiz.backend.domain.RutaFormalizacion
 import com.checkbiz.backend.domain.Suscripcion
 import com.checkbiz.backend.dto.*
 import com.checkbiz.backend.exception.AppException
+import com.checkbiz.backend.repository.AlumniVerificacionRepository
 import com.checkbiz.backend.repository.AnaliticaEventoRepository
 import com.checkbiz.backend.repository.CategoriaRepository
 import com.checkbiz.backend.repository.CatalogoItemRepository
+import com.checkbiz.backend.repository.InsigniaRepository
+import com.checkbiz.backend.repository.NegocioInsigniaRepository
 import com.checkbiz.backend.repository.NegocioRepository
 import com.checkbiz.backend.repository.NotificacionRepository
 import com.checkbiz.backend.repository.PlanRepository
@@ -46,6 +51,9 @@ class NegocioService(
     private val planRepository: PlanRepository,
     private val suscripcionRepository: SuscripcionRepository,
     private val notificacionRepository: NotificacionRepository,
+    private val insigniaRepository: InsigniaRepository,
+    private val negocioInsigniaRepository: NegocioInsigniaRepository,
+    private val alumniVerificacionRepository: AlumniVerificacionRepository,
 ) {
 
     companion object {
@@ -127,6 +135,15 @@ class NegocioService(
         negocio.whatsapp = req.whatsapp
         req.fotoPortadaUrl?.let { negocio.fotoPortadaUrl = it }
         req.logoUrl?.let { negocio.logoUrl = it }
+
+        if (!req.videoPresentacionUrl.isNullOrBlank() && !planDe(negocio).incluyeVideo) {
+            throw AppException(
+                HttpStatus.FORBIDDEN, "PLAN_NO_INCLUYE_VIDEO",
+                "Tu plan actual no incluye video de presentación. Mejora tu plan para agregarlo."
+            )
+        }
+        req.videoPresentacionUrl?.let { negocio.videoPresentacionUrl = it.ifBlank { null } }
+
         negocio.actualizadoEn = OffsetDateTime.now()
         negocioRepository.save(negocio)
 
@@ -177,6 +194,13 @@ class NegocioService(
             )
         }
 
+        if (!req.nombreEn.isNullOrBlank() && !planDe(negocio).incluyeTraduccion) {
+            throw AppException(
+                HttpStatus.FORBIDDEN, "PLAN_NO_INCLUYE_TRADUCCION",
+                "Tu plan actual no incluye traducción de catálogo. Mejora tu plan para agregarla."
+            )
+        }
+
         val siguienteOrden = catalogoRepository.findByNegocioIdOrderByOrdenAsc(negocio.id!!).size
 
         val item = catalogoRepository.save(
@@ -185,21 +209,33 @@ class NegocioService(
                 nombre = req.nombre,
                 precioReferencial = req.precioReferencial,
                 fotoUrl = req.fotoUrl,
+                nombreEn = req.nombreEn?.ifBlank { null },
                 orden = siguienteOrden.toShort(),
                 activo = true,
             )
         )
+        actualizarInsignias(negocio.id!!)
         return item.aResponse()
     }
 
     @Transactional
     fun actualizarItem(usuarioId: UUID, itemId: UUID, req: ActualizarItemCatalogoRequest): ItemCatalogoResponse {
         val item = itemDePropietarioOrThrow(usuarioId, itemId)
+
+        if (!req.nombreEn.isNullOrBlank() && !planDe(item.negocio!!).incluyeTraduccion) {
+            throw AppException(
+                HttpStatus.FORBIDDEN, "PLAN_NO_INCLUYE_TRADUCCION",
+                "Tu plan actual no incluye traducción de catálogo. Mejora tu plan para agregarla."
+            )
+        }
+
         item.nombre = req.nombre
         item.precioReferencial = req.precioReferencial
         item.fotoUrl = req.fotoUrl
         item.activo = req.activo
+        item.nombreEn = req.nombreEn?.ifBlank { null }
         catalogoRepository.save(item)
+        actualizarInsignias(item.negocio!!.id!!)
         return item.aResponse()
     }
 
@@ -242,6 +278,8 @@ class NegocioService(
 
         val resenas = resenaRepository.findByNegocioIdOrderByCreadoEnDesc(negocio.id!!).map { it.aDetalleResponse() }
 
+        val insignias = negocioInsigniaRepository.findByNegocioIdOrderByObtenidaEnDesc(negocio.id!!).map { it.aInsigniaResponse() }
+
         return NegocioPublicoResponse(
             nombreComercial = negocio.nombreComercial, slug = negocio.slug,
             descripcionCorta = negocio.descripcionCorta, ciudad = negocio.ciudad, whatsapp = negocio.whatsapp,
@@ -249,7 +287,7 @@ class NegocioService(
             videoPresentacionUrl = negocio.videoPresentacionUrl,
             categoria = negocio.categoria?.let { CategoriaResumenResponse(it.id!!, it.nombre, it.icono) },
             trustScore = negocio.trustScore, nivelFormalizacion = negocio.nivelFormalizacion,
-            capasVerificacion = capas, catalogo = catalogo,
+            capasVerificacion = capas, insignias = insignias, catalogo = catalogo,
             totalResenas = resenaRepository.countByNegocioId(negocio.id!!),
             promedioResenas = resenaRepository.promedioEstrellas(negocio.id!!),
             resenas = resenas,
@@ -385,9 +423,51 @@ class NegocioService(
 
         negocio.trustScore = total
         negocioRepository.save(negocio)
+        actualizarInsignias(negocioId)
         return total
     }
 
+    // ===================================================================
+    // Insignias y Certificaciones (B10) — se otorgan solas, con datos
+    // reales; nunca se revocan una vez ganadas, ni el dueño puede pedirlas
+    // a mano. Este método es idempotente: llamarlo de nuevo no duplica.
+    // ===================================================================
+    @Transactional
+    fun actualizarInsignias(negocioId: UUID) {
+        val negocio = negocioRepository.findById(negocioId).orElse(null) ?: return
+        val propietario = negocio.usuario ?: return
+
+        val capasCumplidas = listOf(
+            propietario.kycLayer >= 1,
+            propietario.kycLayer >= 2,
+            propietario.fotoVerificacionEstado == "aprobada",
+            propietario.senescytSriEstado == "verificado",
+        ).count { it }
+
+        val totalSolicitudes = solicitudRepository.countByNegocioId(negocioId)
+        val confirmadas = solicitudRepository.countByNegocioIdAndEstado(negocioId, "confirmada")
+        val vendedorConfiable = totalSolicitudes >= 5 && confirmadas.toDouble() / totalSolicitudes >= 0.8
+
+        val alumniVerificado = alumniVerificacionRepository.existsByUsuarioIdAndEstado(propietario.id!!, "verificado")
+
+        val tieneTraduccion = planDe(negocio).incluyeTraduccion &&
+            catalogoRepository.findByNegocioIdOrderByOrdenAsc(negocioId).any { it.activo && !it.nombreEn.isNullOrBlank() }
+
+        otorgarInsignia(negocio, "Emprendedor Verificado", capasCumplidas == 4)
+        otorgarInsignia(negocio, "Vendedor Confiable", vendedorConfiable)
+        otorgarInsignia(negocio, "Alumni Verificado", alumniVerificado)
+        otorgarInsignia(negocio, "Potencial Exportable", tieneTraduccion)
+    }
+
+    private fun otorgarInsignia(negocio: Negocio, nombreInsignia: String, cumple: Boolean) {
+        if (!cumple) return
+        val insignia = insigniaRepository.findByNombre(nombreInsignia) ?: return
+        val id = NegocioInsigniaId(negocioId = negocio.id, insigniaId = insignia.id)
+        if (negocioInsigniaRepository.existsById(id)) return
+        negocioInsigniaRepository.save(NegocioInsignia(id = id, negocio = negocio, insignia = insignia))
+    }
+
+    @Transactional(readOnly = true)
     fun obtenerReputacion(usuarioId: UUID): ReputacionResponse {
         val negocio = miNegocioOrThrow(usuarioId)
         val totalResenas = resenaRepository.countByNegocioId(negocio.id!!)
@@ -403,6 +483,7 @@ class NegocioService(
             solicitudesConfirmadas = confirmadas,
             tasaConfirmacion = if (totalSolicitudes > 0) confirmadas.toDouble() / totalSolicitudes else 0.0,
             antiguedadDias = ChronoUnit.DAYS.between(negocio.creadoEn, OffsetDateTime.now()),
+            insignias = negocioInsigniaRepository.findByNegocioIdOrderByObtenidaEnDesc(negocio.id!!).map { it.aInsigniaResponse() },
         )
     }
 
@@ -513,6 +594,17 @@ class NegocioService(
         val totalClicsWhatsapp = analiticaRepository.countByNegocioIdAndTipoEvento(negocioId, "clic_whatsapp")
         val tasaConversion = if (totalVisitas > 0) totalClicsWhatsapp.toDouble() / totalVisitas else 0.0
 
+        // Básico ve solo los totales de arriba (siempre reales). El detalle
+        // diario y las comparativas son la parte "avanzada" de B9.1.
+        if (!planDe(negocio).incluyeAnaliticaAvanzada) {
+            return AnaliticaNegocioResponse(
+                totalVisitas = totalVisitas, totalClicsWhatsapp = totalClicsWhatsapp, tasaConversion = tasaConversion,
+                avanzadaDisponible = false, serieDiaria = emptyList(),
+                comparativaSemanal = ComparativaResponse(0, 0, null),
+                comparativaMensual = ComparativaResponse(0, 0, null),
+            )
+        }
+
         val hace7 = ahora.minusDays(7)
         val hace14 = ahora.minusDays(14)
         val hace30 = ahora.minusDays(30)
@@ -546,6 +638,7 @@ class NegocioService(
             totalVisitas = totalVisitas,
             totalClicsWhatsapp = totalClicsWhatsapp,
             tasaConversion = tasaConversion,
+            avanzadaDisponible = true,
             serieDiaria = serie,
             comparativaSemanal = comparativaSemanal,
             comparativaMensual = comparativaMensual,
@@ -752,16 +845,22 @@ class NegocioService(
     private fun Negocio.aResponse(totalCatalogo: Long) = NegocioResponse(
         id = id!!, nombreComercial = nombreComercial, slug = slug,
         descripcionCorta = descripcionCorta, ciudad = ciudad, whatsapp = whatsapp,
-        fotoPortadaUrl = fotoPortadaUrl, logoUrl = logoUrl,
+        fotoPortadaUrl = fotoPortadaUrl, logoUrl = logoUrl, videoPresentacionUrl = videoPresentacionUrl,
         categoria = categoria?.let { CategoriaResumenResponse(it.id!!, it.nombre, it.icono) },
         trustScore = trustScore, nivelFormalizacion = nivelFormalizacion,
         estadoPublicacion = estadoPublicacion, totalCatalogo = totalCatalogo,
+        insignias = negocioInsigniaRepository.findByNegocioIdOrderByObtenidaEnDesc(id!!).map { it.aInsigniaResponse() },
         creadoEn = creadoEn, actualizadoEn = actualizadoEn,
+    )
+
+    private fun NegocioInsignia.aInsigniaResponse() = InsigniaResponse(
+        nombre = insignia!!.nombre, descripcion = insignia!!.descripcion,
+        icono = insignia!!.icono, obtenidaEn = obtenidaEn,
     )
 
     private fun CatalogoItem.aResponse() = ItemCatalogoResponse(
         id = id!!, nombre = nombre, precioReferencial = precioReferencial,
-        fotoUrl = fotoUrl, orden = orden, activo = activo, creadoEn = creadoEn,
+        fotoUrl = fotoUrl, orden = orden, activo = activo, nombreEn = nombreEn, creadoEn = creadoEn,
     )
 
     private fun Plan.aResponse() = PlanResponse(

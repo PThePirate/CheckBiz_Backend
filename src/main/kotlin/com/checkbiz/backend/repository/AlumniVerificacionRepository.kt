@@ -9,4 +9,5 @@ interface AlumniVerificacionRepository : JpaRepository<AlumniVerificacion, UUID>
     fun findByUsuarioIdOrderByCreadoEnDesc(usuarioId: UUID): List<AlumniVerificacion>
     fun findByUniversidadIdOrderByCreadoEnDesc(universidadId: Int): List<AlumniVerificacion>
     fun countByUniversidadIdAndEstado(universidadId: Int, estado: String): Long
+    fun existsByUsuarioIdAndEstado(usuarioId: UUID, estado: String): Boolean
 }

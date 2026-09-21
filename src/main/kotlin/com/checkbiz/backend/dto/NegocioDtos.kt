@@ -45,9 +45,20 @@ data class ActualizarNegocioRequest(
 
     val fotoPortadaUrl: String? = null,
     val logoUrl: String? = null,
+    val videoPresentacionUrl: String? = null,
 )
 
 data class CategoriaResumenResponse(val id: Int, val nombre: String, val icono: String?)
+
+// ---------------------------------------------------------------------
+// Insignias y Certificaciones (B10)
+// ---------------------------------------------------------------------
+data class InsigniaResponse(
+    val nombre: String,
+    val descripcion: String?,
+    val icono: String?,
+    val obtenidaEn: OffsetDateTime,
+)
 
 data class NegocioResponse(
     val id: UUID,
@@ -58,11 +69,13 @@ data class NegocioResponse(
     val whatsapp: String,
     val fotoPortadaUrl: String?,
     val logoUrl: String?,
+    val videoPresentacionUrl: String?,
     val categoria: CategoriaResumenResponse?,
     val trustScore: Short,
     val nivelFormalizacion: String,
     val estadoPublicacion: String,
     val totalCatalogo: Long,
+    val insignias: List<InsigniaResponse>,
     val creadoEn: OffsetDateTime,
     val actualizadoEn: OffsetDateTime,
 )
@@ -78,6 +91,10 @@ data class CrearItemCatalogoRequest(
     val precioReferencial: BigDecimal? = null,
 
     val fotoUrl: String? = null,
+
+    // Traducción manual, self-service — solo planes con incluyeTraduccion (B9.1).
+    @field:Size(max = 120)
+    val nombreEn: String? = null,
 )
 
 data class ActualizarItemCatalogoRequest(
@@ -89,6 +106,9 @@ data class ActualizarItemCatalogoRequest(
 
     val fotoUrl: String? = null,
     val activo: Boolean = true,
+
+    @field:Size(max = 120)
+    val nombreEn: String? = null,
 )
 
 data class ItemCatalogoResponse(
@@ -98,6 +118,7 @@ data class ItemCatalogoResponse(
     val fotoUrl: String?,
     val orden: Short,
     val activo: Boolean,
+    val nombreEn: String?,
     val creadoEn: OffsetDateTime,
 )
 
@@ -113,6 +134,7 @@ data class ReputacionResponse(
     val solicitudesConfirmadas: Long,
     val tasaConfirmacion: Double,
     val antiguedadDias: Long,
+    val insignias: List<InsigniaResponse>,
 )
 
 data class ResenaDetalleResponse(
@@ -148,6 +170,7 @@ data class NegocioPublicoResponse(
     val trustScore: Short,
     val nivelFormalizacion: String,
     val capasVerificacion: List<CapaVerificacionResponse>,
+    val insignias: List<InsigniaResponse>,
     val catalogo: List<ItemCatalogoResponse>,
     val totalResenas: Long,
     val promedioResenas: Double,
@@ -248,6 +271,10 @@ data class AnaliticaNegocioResponse(
     val totalVisitas: Long,
     val totalClicsWhatsapp: Long,
     val tasaConversion: Double,
+    // false en plan Básico: el detalle diario y las comparativas quedan
+    // detrás de incluyeAnaliticaAvanzada (B9.1) — los totales de arriba
+    // siempre son reales para todos los planes.
+    val avanzadaDisponible: Boolean,
     val serieDiaria: List<PuntoSerieResponse>,
     val comparativaSemanal: ComparativaResponse,
     val comparativaMensual: ComparativaResponse,
