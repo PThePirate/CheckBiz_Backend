@@ -49,12 +49,12 @@ class OtpService(
         emailService.enviar(
             destinatario = usuario.correo,
             asunto = "Tu código de verificación CheckBiz",
-            cuerpoHtml = """
-                <p>Hola ${usuario.nombreCompleto},</p>
-                <p>Tu código de verificación es:</p>
-                <p style="font-size: 28px; font-weight: bold; letter-spacing: 4px;">$codigo</p>
-                <p>Vence en 5 minutos. Si no fuiste tú, ignora este correo.</p>
-            """.trimIndent(),
+            cuerpoHtml = EmailTemplates.codigoVerificacion(
+                nombreCompleto = usuario.nombreCompleto,
+                etiqueta = "Verificación de cuenta",
+                mensaje = "Usa este código para confirmar tu correo y continuar con tu registro en CheckBiz.",
+                codigo = codigo,
+            ),
         )
 
         return EnvioResultado(expiraEn = expiraEn, codigoDev = null)
@@ -111,12 +111,12 @@ class OtpService(
         emailService.enviar(
             destinatario = usuario.correo,
             asunto = "Recupera tu contraseña de CheckBiz",
-            cuerpoHtml = """
-                <p>Hola ${usuario.nombreCompleto},</p>
-                <p>Usa este código para restablecer tu contraseña:</p>
-                <p style="font-size: 28px; font-weight: bold; letter-spacing: 4px;">$codigo</p>
-                <p>Vence en 5 minutos. Si no fuiste tú, ignora este correo — tu contraseña actual sigue siendo válida.</p>
-            """.trimIndent(),
+            cuerpoHtml = EmailTemplates.codigoVerificacion(
+                nombreCompleto = usuario.nombreCompleto,
+                etiqueta = "Recuperar contraseña",
+                mensaje = "Usa este código para restablecer tu contraseña. Si no fuiste tú, tu contraseña actual sigue siendo válida.",
+                codigo = codigo,
+            ),
         )
         return EnvioResultado(expiraEn = expiraEn, codigoDev = null)
     }
