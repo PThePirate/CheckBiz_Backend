@@ -29,9 +29,9 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: jdbc:postgresql://db:5432/checkbiz_db
-      DATABASE_USER: postgres
-      DATABASE_PASSWORD: checkbiz_dev_pw
+      DATABASE_URL: "${DATABASE_URL:-jdbc:postgresql://db:5432/checkbiz_db}"
+      DATABASE_USER: "${DATABASE_USER:-postgres}"
+      DATABASE_PASSWORD: "${DATABASE_PASSWORD:-checkbiz_dev_pw}"
       JWT_SECRET: cambia_este_valor_por_uno_largo_y_aleatorio
       OTP_DEV_MODE: "${OTP_DEV_MODE:-false}"
       EMAIL_HABILITADO: "${EMAIL_HABILITADO:-true}"
