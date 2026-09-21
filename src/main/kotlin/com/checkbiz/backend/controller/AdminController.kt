@@ -98,4 +98,23 @@ class AdminController(private val adminService: AdminService) {
     // --- Suscripciones y licenciamiento B2B (E6) ---
     @GetMapping("/suscripciones")
     fun gestionSuscripciones(): GestionSuscripcionesResponse = adminService.gestionSuscripciones()
+
+    // --- Insignias co-branded (E7) ---
+    @GetMapping("/insignias")
+    fun listarInsigniasCoBranded(): List<InsigniaAdminResponse> = adminService.listarInsigniasCoBranded()
+
+    @PostMapping("/insignias")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun crearInsigniaCoBranded(@Valid @RequestBody req: CrearInsigniaCoBrandedRequest): InsigniaAdminResponse =
+        adminService.crearInsigniaCoBranded(adminActual().sub, req)
+
+    @PostMapping("/insignias/{id}/asignar")
+    fun asignarInsigniaCoBranded(
+        @PathVariable id: Int,
+        @Valid @RequestBody req: AsignarInsigniaRequest,
+    ): InsigniaAdminResponse = adminService.asignarInsigniaCoBranded(adminActual().sub, id, req)
+
+    @DeleteMapping("/insignias/{id}/asignar/{negocioId}")
+    fun revocarInsigniaCoBranded(@PathVariable id: Int, @PathVariable negocioId: UUID): InsigniaAdminResponse =
+        adminService.revocarInsigniaCoBranded(adminActual().sub, id, negocioId)
 }

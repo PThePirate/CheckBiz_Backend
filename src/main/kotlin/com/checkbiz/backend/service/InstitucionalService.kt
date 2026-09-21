@@ -4,8 +4,10 @@ import com.checkbiz.backend.config.InstitucionalClaims
 import com.checkbiz.backend.config.JwtService
 import com.checkbiz.backend.domain.AlumniVerificacion
 import com.checkbiz.backend.dto.AlumniSeguimientoResponse
+import com.checkbiz.backend.dto.CiudadAgregadaResponse
 import com.checkbiz.backend.dto.DashboardB2GResponse
 import com.checkbiz.backend.dto.DashboardCacesResponse
+import com.checkbiz.backend.dto.DashboardDetalleB2GResponse
 import com.checkbiz.backend.dto.InstitucionalAuthResponse
 import com.checkbiz.backend.dto.InstitucionalLoginRequest
 import com.checkbiz.backend.dto.InstitucionalResponse
@@ -72,6 +74,34 @@ class InstitucionalService(
      * "formalizado" y les aplica la cuota fija de Negocio Popular como piso
      * de referencia (no se asume qué tramo RIMPE exacto le toca a cada uno).
      */
+    // D3 — mismo espíritu de D2 (solo conteos) con una vista adicional por
+    // ciudad. Umbral de anonimato: ninguna ciudad se muestra con menos de
+    // UMBRAL_ANONIMATO negocios publicados — en una ciudad pequeña, un
+    // conteo de 1 o 2 equivaldría a señalar un negocio concreto. Esas
+    // ciudades se agrupan en "Otras ciudades" en vez de ocultarse sin más,
+    // así el total sigue cuadrando con dashboardB2G().
+    companion object {
+        private const val UMBRAL_ANONIMATO = 3L
+    }
+
+    fun dashboardDetalleB2G(): DashboardDetalleB2GResponse {
+        val filas = negocioRepository.contarPublicadosPorCiudad("publicado")
+            .map { CiudadAgregadaResponse(it[0] as String, it[1] as Long) }
+
+        val (visibles, suprimidas) = filas.partition { it.totalNegocios >= UMBRAL_ANONIMATO }
+        val totalOtras = suprimidas.sumOf { it.totalNegocios }
+        val porCiudad = if (totalOtras > 0) {
+            visibles + CiudadAgregadaResponse("Otras ciudades", totalOtras)
+        } else visibles
+
+        return DashboardDetalleB2GResponse(
+            porCiudad = porCiudad,
+            umbralAnonimato = UMBRAL_ANONIMATO,
+            notaAnonimato = "Las ciudades con menos de $UMBRAL_ANONIMATO negocios publicados se agrupan en " +
+                "\"Otras ciudades\" para que ningún conteo pueda identificar un negocio en particular.",
+        )
+    }
+
     fun dashboardB2G(): DashboardB2GResponse {
         val porNivel = NIVELES.map { nivel ->
             NivelAgregadoResponse(nivel, negocioRepository.countByEstadoPublicacionAndNivelFormalizacion("publicado", nivel))

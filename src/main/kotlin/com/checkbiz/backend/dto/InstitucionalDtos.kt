@@ -48,6 +48,21 @@ data class DashboardB2GResponse(
 )
 
 // ---------------------------------------------------------------------
+// Detalle institucional (D3) — igual de agregado que D2, con una vista
+// adicional por ciudad. Las ciudades con muy pocos negocios se agrupan en
+// "Otras" antes de salir del backend (ver InstitucionalService), para que
+// un conteo de 1 o 2 nunca pueda funcionar como identificador indirecto
+// de un negocio concreto.
+// ---------------------------------------------------------------------
+data class CiudadAgregadaResponse(val ciudad: String, val totalNegocios: Long)
+
+data class DashboardDetalleB2GResponse(
+    val porCiudad: List<CiudadAgregadaResponse>,
+    val umbralAnonimato: Long,
+    val notaAnonimato: String,
+)
+
+// ---------------------------------------------------------------------
 // Verificación de alumni (C — Panel B2B Universidades)
 // ---------------------------------------------------------------------
 data class UniversidadResponse(val id: Int, val nombre: String)

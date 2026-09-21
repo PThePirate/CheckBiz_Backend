@@ -33,6 +33,7 @@ data class NegocioResumenResponse(
     val nombreComercial: String,
     val nivelFormalizacion: String,
     val trustScore: Short,
+    val slug: String,
 )
 
 data class ContratoResumenResponse(
@@ -112,6 +113,44 @@ data class GestionSuscripcionesResponse(
     val porPlan: List<SuscripcionPorPlanResponse>,
     val ingresoMensualEstimado: BigDecimal,
     val instituciones: List<InstitucionActivaResponse>,
+)
+
+// ---------------------------------------------------------------------
+// Insignias co-branded (E7) — a diferencia de las de B10 (criterio
+// automático, nunca revocables), estas las crea y asigna un admin a mano:
+// representan una alianza con una institución (cámara, universidad, etc.),
+// así que también puede revocarlas si la alianza termina.
+// ---------------------------------------------------------------------
+data class CrearInsigniaCoBrandedRequest(
+    @field:NotBlank
+    @field:Size(max = 60)
+    val nombre: String,
+
+    @field:Size(max = 200)
+    val descripcion: String?,
+
+    @field:Size(max = 40)
+    val icono: String?,
+)
+
+data class AsignarInsigniaRequest(
+    @field:NotBlank
+    val negocioSlug: String,
+)
+
+data class NegocioConInsigniaResponse(
+    val negocioId: UUID,
+    val nombreComercial: String,
+    val slug: String,
+)
+
+data class InsigniaAdminResponse(
+    val id: Int,
+    val nombre: String,
+    val descripcion: String?,
+    val icono: String?,
+    val tipo: String,
+    val negociosAsignados: List<NegocioConInsigniaResponse>,
 )
 
 // ---------------------------------------------------------------------

@@ -5,4 +5,6 @@ import org.springframework.data.jpa.repository.JpaRepository
 
 interface InsigniaRepository : JpaRepository<Insignia, Int> {
     fun findByNombre(nombre: String): Insignia?
+    fun findByTipoOrderByNombreAsc(tipo: String): List<Insignia>
+    fun existsByNombre(nombre: String): Boolean
 }

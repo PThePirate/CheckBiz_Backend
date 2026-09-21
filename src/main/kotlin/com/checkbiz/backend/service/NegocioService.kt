@@ -341,6 +341,9 @@ class NegocioService(
 
     fun ciudadesDisponibles(): List<String> = negocioRepository.ciudadesDisponibles()
 
+    // F2 — sitemap.xml
+    fun slugsPublicados(): List<String> = negocioRepository.slugsPublicados("publicado")
+
     // ===================================================================
     // Bandeja de solicitudes (B5)
     // ===================================================================

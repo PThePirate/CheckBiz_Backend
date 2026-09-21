@@ -7,4 +7,5 @@ import java.util.UUID
 
 interface NegocioInsigniaRepository : JpaRepository<NegocioInsignia, NegocioInsigniaId> {
     fun findByNegocioIdOrderByObtenidaEnDesc(negocioId: UUID): List<NegocioInsignia>
+    fun findByIdInsigniaId(insigniaId: Int): List<NegocioInsignia>
 }

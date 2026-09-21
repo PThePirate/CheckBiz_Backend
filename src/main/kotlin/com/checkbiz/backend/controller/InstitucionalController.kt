@@ -5,6 +5,7 @@ import com.checkbiz.backend.config.InstitucionalClaims
 import com.checkbiz.backend.dto.AlumniSeguimientoResponse
 import com.checkbiz.backend.dto.DashboardB2GResponse
 import com.checkbiz.backend.dto.DashboardCacesResponse
+import com.checkbiz.backend.dto.DashboardDetalleB2GResponse
 import com.checkbiz.backend.dto.DecidirAlumniRequest
 import com.checkbiz.backend.dto.InstitucionalAuthResponse
 import com.checkbiz.backend.dto.InstitucionalLoginRequest
@@ -36,6 +37,10 @@ class InstitucionalController(private val institucionalService: InstitucionalSer
     // D2 — agregado, sin datos sensibles individuales.
     @GetMapping("/dashboard-b2g")
     fun dashboardB2G(): DashboardB2GResponse = institucionalService.dashboardB2G()
+
+    // D3 — detalle por ciudad, con supresión de ciudades poco pobladas.
+    @GetMapping("/dashboard-b2g/detalle")
+    fun dashboardDetalleB2G(): DashboardDetalleB2GResponse = institucionalService.dashboardDetalleB2G()
 
     // --- Panel B2B Universidades (C) ---
     @GetMapping("/dashboard-caces")

@@ -9,6 +9,11 @@ import java.util.UUID
 
 interface NegocioRepository : JpaRepository<Negocio, UUID> {
     fun countByEstadoPublicacion(estado: String): Long
+
+    // F2 — sitemap.xml: solo el slug y la fecha, nunca datos del negocio
+    // completo (esto es una URL pública, no una respuesta de la API).
+    @Query("SELECT n.slug FROM Negocio n WHERE n.estadoPublicacion = :estado ORDER BY n.actualizadoEn DESC")
+    fun slugsPublicados(@Param("estado") estado: String): List<String>
     fun countByCategoriaId(categoriaId: Int): Long
     fun countByEstadoPublicacionAndNivelFormalizacion(estado: String, nivel: String): Long
 
@@ -24,9 +29,24 @@ interface NegocioRepository : JpaRepository<Negocio, UUID> {
         """
     )
     fun contarPublicadosPorCategoria(@Param("estado") estado: String): List<CategoriaAgregadaResponse>
+
+    // D3 — detalle institucional, mismo criterio de agregado que D2 pero
+    // por ciudad. El umbral de anonimato (no mostrar una ciudad con muy
+    // pocos negocios) se aplica en InstitucionalService, no aquí.
+    @Query(
+        """
+        SELECT n.ciudad, COUNT(n)
+        FROM Negocio n
+        WHERE n.estadoPublicacion = :estado AND n.ciudad IS NOT NULL
+        GROUP BY n.ciudad
+        ORDER BY COUNT(n) DESC
+        """
+    )
+    fun contarPublicadosPorCiudad(@Param("estado") estado: String): List<Array<Any>>
     fun findByUsuarioId(usuarioId: UUID): Negocio?
     fun existsBySlug(slug: String): Boolean
     fun findBySlugAndEstadoPublicacion(slug: String, estado: String): Negocio?
+    fun findBySlug(slug: String): Negocio?
 
     /**
      * Búsqueda pública (A4/A5). Cada filtro es opcional — si viene null,

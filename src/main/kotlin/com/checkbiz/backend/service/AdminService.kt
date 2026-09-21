@@ -4,6 +4,9 @@ import com.checkbiz.backend.config.AdminClaims
 import com.checkbiz.backend.config.JwtService
 import com.checkbiz.backend.domain.AdminLogAuditoria
 import com.checkbiz.backend.domain.Categoria
+import com.checkbiz.backend.domain.Insignia
+import com.checkbiz.backend.domain.NegocioInsignia
+import com.checkbiz.backend.domain.NegocioInsigniaId
 import com.checkbiz.backend.domain.Notificacion
 import com.checkbiz.backend.domain.VetoCedula
 import com.checkbiz.backend.dto.*
@@ -37,7 +40,13 @@ class AdminService(
     private val archivoService: ArchivoService,
     private val suscripcionRepository: SuscripcionRepository,
     private val cuentaInstitucionalRepository: CuentaInstitucionalRepository,
+    private val insigniaRepository: InsigniaRepository,
+    private val negocioInsigniaRepository: NegocioInsigniaRepository,
 ) {
+
+    companion object {
+        private const val TIPO_CO_BRANDED = "co-branded"
+    }
 
     // ===================================================================
     // Login
@@ -231,7 +240,7 @@ class AdminService(
             .orElseThrow { AppException(HttpStatus.NOT_FOUND, "NO_ENCONTRADO", "Usuario no encontrado") }
 
         val negocio = negocioRepository.findByUsuarioId(id)?.let {
-            NegocioResumenResponse(it.nombreComercial, it.nivelFormalizacion, it.trustScore)
+            NegocioResumenResponse(it.nombreComercial, it.nivelFormalizacion, it.trustScore, it.slug)
         }
         val contratos = contratoRepository.findByUsuarioIdOrderByFirmadoEnAsc(id).map {
             ContratoResumenResponse(it.tipo, it.firmadoEn, it.ipFirma)
@@ -360,6 +369,66 @@ class AdminService(
     }
 
     // ===================================================================
+    // Insignias co-branded (E7)
+    // ===================================================================
+    @Transactional(readOnly = true)
+    fun listarInsigniasCoBranded(): List<InsigniaAdminResponse> =
+        insigniaRepository.findByTipoOrderByNombreAsc(TIPO_CO_BRANDED).map { it.aAdminResponse() }
+
+    @Transactional
+    fun crearInsigniaCoBranded(adminId: UUID, req: CrearInsigniaCoBrandedRequest): InsigniaAdminResponse {
+        if (insigniaRepository.existsByNombre(req.nombre)) {
+            throw AppException(HttpStatus.CONFLICT, "INSIGNIA_DUPLICADA", "Ya existe una insignia con ese nombre")
+        }
+        val insignia = insigniaRepository.save(
+            Insignia(nombre = req.nombre, descripcion = req.descripcion, icono = req.icono, tipo = TIPO_CO_BRANDED)
+        )
+        registrarLog(adminId, "insignia_co_branded_creada", "insignias", insignia.id.toString())
+        return insignia.aAdminResponse()
+    }
+
+    @Transactional
+    fun asignarInsigniaCoBranded(adminId: UUID, insigniaId: Int, req: AsignarInsigniaRequest): InsigniaAdminResponse {
+        val insignia = insigniaCoBrandedOrThrow(insigniaId)
+        val negocio = negocioRepository.findBySlug(req.negocioSlug)
+            ?: throw AppException(HttpStatus.NOT_FOUND, "NEGOCIO_NO_ENCONTRADO", "No existe un negocio con ese enlace")
+
+        val id = NegocioInsigniaId(negocioId = negocio.id, insigniaId = insignia.id)
+        if (!negocioInsigniaRepository.existsById(id)) {
+            negocioInsigniaRepository.save(NegocioInsignia(id = id, negocio = negocio, insignia = insignia))
+            registrarLog(adminId, "insignia_co_branded_asignada", "negocios", negocio.id.toString())
+        }
+        return insigniaRepository.findById(insigniaId).get().aAdminResponse()
+    }
+
+    @Transactional
+    fun revocarInsigniaCoBranded(adminId: UUID, insigniaId: Int, negocioId: UUID): InsigniaAdminResponse {
+        insigniaCoBrandedOrThrow(insigniaId)
+        negocioInsigniaRepository.deleteById(NegocioInsigniaId(negocioId = negocioId, insigniaId = insigniaId))
+        registrarLog(adminId, "insignia_co_branded_revocada", "negocios", negocioId.toString())
+        return insigniaRepository.findById(insigniaId).get().aAdminResponse()
+    }
+
+    private fun insigniaCoBrandedOrThrow(insigniaId: Int): Insignia {
+        val insignia = insigniaRepository.findById(insigniaId)
+            .orElseThrow { AppException(HttpStatus.NOT_FOUND, "NO_ENCONTRADA", "Insignia no encontrada") }
+        if (insignia.tipo != TIPO_CO_BRANDED) {
+            throw AppException(
+                HttpStatus.FORBIDDEN, "NO_ES_CO_BRANDED",
+                "Esta insignia se otorga por criterio automático (B10) — no se asigna ni se revoca a mano"
+            )
+        }
+        return insignia
+    }
+
+    private fun Insignia.aAdminResponse() = InsigniaAdminResponse(
+        id = id!!, nombre = nombre, descripcion = descripcion, icono = icono, tipo = tipo,
+        negociosAsignados = negocioInsigniaRepository.findByIdInsigniaId(id!!).map {
+            val n = it.negocio!!
+            NegocioConInsigniaResponse(negocioId = n.id!!, nombreComercial = n.nombreComercial, slug = n.slug)
+        },
+    )
+
     private fun registrarLog(adminId: UUID, accion: String, entidad: String, entidadId: String) {
         logRepository.save(
             AdminLogAuditoria(adminId = adminId, accion = accion, entidadAfectada = entidad, entidadId = entidadId)

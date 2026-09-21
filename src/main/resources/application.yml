@@ -54,6 +54,7 @@ checkbiz:
     habilitado: ${EMAIL_HABILITADO:false}
   uploads:
     dir: ${UPLOADS_DIR:uploads}
+  frontend-url: ${FRONTEND_URL:http://localhost:5173}
 
 logging:
   level:
