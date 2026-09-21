@@ -35,6 +35,8 @@ class AdminService(
     private val jwtService: JwtService,
     private val passwordEncoder: PasswordEncoder,
     private val archivoService: ArchivoService,
+    private val suscripcionRepository: SuscripcionRepository,
+    private val cuentaInstitucionalRepository: CuentaInstitucionalRepository,
 ) {
 
     // ===================================================================
@@ -321,6 +323,40 @@ class AdminService(
         "kyc_foto_aprobada", "kyc_foto_rechazada" -> "usuario ${nombreDeVerificacion(log.entidadId)}"
         "veto_cedula" -> "cédula ${log.entidadId}"
         else -> log.entidadId ?: ""
+    }
+
+    // ===================================================================
+    // Suscripciones y licenciamiento B2B (E6) — solo lectura. El admin no
+    // cambia el plan de un negocio desde aquí: eso sigue siendo self-service
+    // vía B9, esto es únicamente visibilidad agregada.
+    // ===================================================================
+    @Transactional(readOnly = true)
+    fun gestionSuscripciones(): GestionSuscripcionesResponse {
+        val suscripciones = suscripcionRepository.findAll()
+
+        val porPlan = suscripciones
+            .groupingBy { it.plan!!.nombre }
+            .eachCount()
+            .map { (plan, total) -> SuscripcionPorPlanResponse(plan, total.toLong()) }
+            .sortedBy { it.plan }
+
+        // Equivalente mensual: una suscripción semestral se cuenta a razón de 1/6 de su precio.
+        val ingresoMensualEstimado = suscripciones
+            .filter { it.estado == "activa" }
+            .fold(java.math.BigDecimal.ZERO) { acc, s ->
+                val plan = s.plan!!
+                val mensualEquivalente = if (s.ciclo == "semestral") {
+                    plan.precioSemestral.divide(java.math.BigDecimal(6), 2, java.math.RoundingMode.HALF_UP)
+                } else plan.precioMensual
+                acc.add(mensualEquivalente)
+            }
+
+        val instituciones = cuentaInstitucionalRepository.findAll()
+            .filter { it.activo }
+            .sortedByDescending { it.creadoEn }
+            .map { InstitucionActivaResponse(it.nombreInstitucion, it.tipo, it.correo, it.creadoEn) }
+
+        return GestionSuscripcionesResponse(porPlan, ingresoMensualEstimado, instituciones)
     }
 
     // ===================================================================

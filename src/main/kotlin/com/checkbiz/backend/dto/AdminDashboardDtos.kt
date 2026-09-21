@@ -3,6 +3,7 @@ package com.checkbiz.backend.dto
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Pattern
 import jakarta.validation.constraints.Size
+import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.util.UUID
 
@@ -93,6 +94,24 @@ data class DenunciaResponse(
 data class ResolverDenunciaRequest(
     @field:Pattern(regexp = "archivar|vetar")
     val accion: String,
+)
+
+// ---------------------------------------------------------------------
+// Suscripciones y licenciamiento B2B (E6)
+// ---------------------------------------------------------------------
+data class SuscripcionPorPlanResponse(val plan: String, val total: Long)
+
+data class InstitucionActivaResponse(
+    val nombreInstitucion: String,
+    val tipo: String,
+    val correo: String,
+    val creadoEn: OffsetDateTime,
+)
+
+data class GestionSuscripcionesResponse(
+    val porPlan: List<SuscripcionPorPlanResponse>,
+    val ingresoMensualEstimado: BigDecimal,
+    val instituciones: List<InstitucionActivaResponse>,
 )
 
 // ---------------------------------------------------------------------

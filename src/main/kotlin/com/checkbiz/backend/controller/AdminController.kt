@@ -94,4 +94,8 @@ class AdminController(private val adminService: AdminService) {
     // --- Logs de auditoría (E8) ---
     @GetMapping("/logs")
     fun listarLogs(): List<LogAuditoriaResponse> = adminService.listarLogs()
+
+    // --- Suscripciones y licenciamiento B2B (E6) ---
+    @GetMapping("/suscripciones")
+    fun gestionSuscripciones(): GestionSuscripcionesResponse = adminService.gestionSuscripciones()
 }
