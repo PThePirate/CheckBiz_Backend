@@ -139,4 +139,16 @@ class NegocioController(
     @PostMapping("/mio/suscripcion/checkout")
     fun cambiarPlan(@Valid @RequestBody req: CambiarPlanRequest): SuscripcionResponse =
         negocioService.cambiarPlan(usuarioActual().sub, req)
+
+    // --- Multiusuario (B9.1 — Elite) ---
+    @GetMapping("/mio/colaboradores")
+    fun listarColaboradores(): List<ColaboradorResponse> = negocioService.listarColaboradores(usuarioActual().sub)
+
+    @PostMapping("/mio/colaboradores")
+    fun invitarColaborador(@Valid @RequestBody req: InvitarColaboradorRequest): List<ColaboradorResponse> =
+        negocioService.invitarColaborador(usuarioActual().sub, req)
+
+    @DeleteMapping("/mio/colaboradores/{usuarioId}")
+    fun eliminarColaborador(@PathVariable usuarioId: UUID): List<ColaboradorResponse> =
+        negocioService.eliminarColaborador(usuarioActual().sub, usuarioId)
 }

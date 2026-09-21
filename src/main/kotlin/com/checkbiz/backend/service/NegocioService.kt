@@ -3,6 +3,8 @@ package com.checkbiz.backend.service
 import com.checkbiz.backend.domain.AnaliticaEvento
 import com.checkbiz.backend.domain.CatalogoItem
 import com.checkbiz.backend.domain.Negocio
+import com.checkbiz.backend.domain.NegocioColaborador
+import com.checkbiz.backend.domain.NegocioColaboradorId
 import com.checkbiz.backend.domain.NegocioInsignia
 import com.checkbiz.backend.domain.NegocioInsigniaId
 import com.checkbiz.backend.domain.Notificacion
@@ -18,6 +20,7 @@ import com.checkbiz.backend.repository.AnaliticaEventoRepository
 import com.checkbiz.backend.repository.CategoriaRepository
 import com.checkbiz.backend.repository.CatalogoItemRepository
 import com.checkbiz.backend.repository.InsigniaRepository
+import com.checkbiz.backend.repository.NegocioColaboradorRepository
 import com.checkbiz.backend.repository.NegocioInsigniaRepository
 import com.checkbiz.backend.repository.NegocioRepository
 import com.checkbiz.backend.repository.NotificacionRepository
@@ -54,6 +57,7 @@ class NegocioService(
     private val insigniaRepository: InsigniaRepository,
     private val negocioInsigniaRepository: NegocioInsigniaRepository,
     private val alumniVerificacionRepository: AlumniVerificacionRepository,
+    private val negocioColaboradorRepository: NegocioColaboradorRepository,
 ) {
 
     companion object {
@@ -104,7 +108,7 @@ class NegocioService(
             Suscripcion(negocio = negocio, plan = planGratuito, ciclo = "mensual", estado = "activa")
         )
 
-        return negocio.aResponse(0)
+        return negocio.aResponse(0, usuarioId)
     }
 
     // Sin transacción de lectura, aResponse() falla al tocar relaciones
@@ -112,10 +116,9 @@ class NegocioService(
     // apagado y la sesión de Hibernate ya se cerró.
     @Transactional(readOnly = true)
     fun obtenerMiNegocio(usuarioId: UUID): NegocioResponse {
-        val negocio = negocioRepository.findByUsuarioId(usuarioId)
-            ?: throw AppException(HttpStatus.NOT_FOUND, "SIN_NEGOCIO", "Todavía no has creado tu negocio")
+        val negocio = miNegocioOrThrow(usuarioId)
         val total = catalogoRepository.countByNegocioIdAndActivoTrue(negocio.id!!)
-        return negocio.aResponse(total)
+        return negocio.aResponse(total, usuarioId)
     }
 
     @Transactional
@@ -148,7 +151,7 @@ class NegocioService(
         negocioRepository.save(negocio)
 
         val total = catalogoRepository.countByNegocioIdAndActivoTrue(negocio.id!!)
-        return negocio.aResponse(total)
+        return negocio.aResponse(total, usuarioId)
     }
 
     @Transactional
@@ -159,7 +162,7 @@ class NegocioService(
         negocioRepository.save(negocio)
 
         val total = catalogoRepository.countByNegocioIdAndActivoTrue(negocio.id!!)
-        return negocio.aResponse(total)
+        return negocio.aResponse(total, usuarioId)
     }
 
     @Transactional
@@ -170,7 +173,7 @@ class NegocioService(
         negocioRepository.save(negocio)
 
         val total = catalogoRepository.countByNegocioIdAndActivoTrue(negocio.id!!)
-        return negocio.aResponse(total)
+        return negocio.aResponse(total, usuarioId)
     }
 
     @Transactional
@@ -191,7 +194,7 @@ class NegocioService(
         negocioRepository.save(negocio)
 
         val total = catalogoRepository.countByNegocioIdAndActivoTrue(negocio.id!!)
-        return negocio.aResponse(total)
+        return negocio.aResponse(total, usuarioId)
     }
 
     // ===================================================================
@@ -720,6 +723,7 @@ class NegocioService(
     @Transactional
     fun cambiarPlan(usuarioId: UUID, req: CambiarPlanRequest): SuscripcionResponse {
         val negocio = miNegocioOrThrow(usuarioId)
+        exigirDueno(negocio, usuarioId)
         val plan = planRepository.findByNombre(req.planNombre)
             ?: throw AppException(HttpStatus.BAD_REQUEST, "PLAN_INVALIDO", "El plan seleccionado no existe")
 
@@ -737,6 +741,82 @@ class NegocioService(
         val totalCatalogo = catalogoRepository.countByNegocioIdAndActivoTrue(negocio.id!!)
         return suscripcion.aResponse(totalCatalogo)
     }
+
+    // ===================================================================
+    // Multiusuario (B9.1 — Elite)
+    // ===================================================================
+    @Transactional(readOnly = true)
+    fun listarColaboradores(usuarioId: UUID): List<ColaboradorResponse> {
+        val negocio = miNegocioOrThrow(usuarioId)
+        exigirDueno(negocio, usuarioId)
+        return negocioColaboradorRepository.findByNegocioIdOrderByAgregadoEnAsc(negocio.id!!).map { it.aResponse() }
+    }
+
+    @Transactional
+    fun invitarColaborador(usuarioId: UUID, req: InvitarColaboradorRequest): List<ColaboradorResponse> {
+        val negocio = miNegocioOrThrow(usuarioId)
+        exigirDueno(negocio, usuarioId)
+
+        if (!planDe(negocio).incluyeMultiusuario) {
+            throw AppException(
+                HttpStatus.FORBIDDEN, "PLAN_NO_INCLUYE_MULTIUSUARIO",
+                "Tu plan actual no incluye multiusuario. Mejora tu plan para invitar colaboradores."
+            )
+        }
+
+        val invitado = usuarioRepository.findByCorreo(req.correo.trim().lowercase()).orElseThrow {
+            AppException(
+                HttpStatus.NOT_FOUND, "USUARIO_NO_ENCONTRADO",
+                "No hay ninguna cuenta CheckBiz con ese correo. La persona debe registrarse primero."
+            )
+        }
+
+        if (invitado.id == usuarioId) {
+            throw AppException(HttpStatus.BAD_REQUEST, "NO_PUEDES_INVITARTE", "Ya eres el dueño de este negocio")
+        }
+        if (negocioRepository.findByUsuarioId(invitado.id!!) != null) {
+            throw AppException(
+                HttpStatus.CONFLICT, "YA_TIENE_NEGOCIO",
+                "Esa persona ya es dueña de su propio negocio en CheckBiz"
+            )
+        }
+        val yaColabora = negocioColaboradorRepository.findByUsuarioId(invitado.id!!)
+        if (yaColabora != null) {
+            throw AppException(
+                HttpStatus.CONFLICT, "YA_ES_COLABORADOR",
+                if (yaColabora.negocio?.id == negocio.id) "Esa persona ya colabora en este negocio"
+                else "Esa persona ya colabora en otro negocio"
+            )
+        }
+
+        negocioColaboradorRepository.save(
+            NegocioColaborador(
+                id = NegocioColaboradorId(negocioId = negocio.id, usuarioId = invitado.id),
+                negocio = negocio, usuario = invitado,
+            )
+        )
+        return negocioColaboradorRepository.findByNegocioIdOrderByAgregadoEnAsc(negocio.id!!).map { it.aResponse() }
+    }
+
+    @Transactional
+    fun eliminarColaborador(usuarioId: UUID, colaboradorUsuarioId: UUID): List<ColaboradorResponse> {
+        val negocio = miNegocioOrThrow(usuarioId)
+        exigirDueno(negocio, usuarioId)
+
+        val colaborador = negocioColaboradorRepository.findByUsuarioId(colaboradorUsuarioId)
+        if (colaborador == null || colaborador.negocio?.id != negocio.id) {
+            throw AppException(HttpStatus.NOT_FOUND, "NO_ENCONTRADO", "Ese colaborador no pertenece a tu negocio")
+        }
+        negocioColaboradorRepository.delete(colaborador)
+        return negocioColaboradorRepository.findByNegocioIdOrderByAgregadoEnAsc(negocio.id!!).map { it.aResponse() }
+    }
+
+    private fun NegocioColaborador.aResponse() = ColaboradorResponse(
+        usuarioId = usuario!!.id!!,
+        nombreCompleto = usuario!!.nombreCompleto,
+        correo = usuario!!.correo,
+        agregadoEn = agregadoEn,
+    )
 
     // ===================================================================
     // Ruta de Formalización (B8)
@@ -845,9 +925,27 @@ class NegocioService(
     )
 
     // ===================================================================
-    private fun miNegocioOrThrow(usuarioId: UUID): Negocio =
-        negocioRepository.findByUsuarioId(usuarioId)
-            ?: throw AppException(HttpStatus.NOT_FOUND, "SIN_NEGOCIO", "Todavía no has creado tu negocio")
+    // B9.1 — un colaborador opera el mismo negocio que su dueño en cualquier
+    // endpoint que pase por aquí (editor, catálogo, solicitudes, reputación,
+    // analítica, formalización, QR, imágenes). Lo que un colaborador NUNCA
+    // puede hacer (cambiar de plan, invitar/quitar colaboradores, eliminar
+    // la cuenta) se valida aparte, comparando negocio.usuario?.id.
+    private fun miNegocioOrThrow(usuarioId: UUID): Negocio {
+        negocioRepository.findByUsuarioId(usuarioId)?.let { return it }
+        negocioColaboradorRepository.findByUsuarioId(usuarioId)?.negocio?.let { return it }
+        throw AppException(HttpStatus.NOT_FOUND, "SIN_NEGOCIO", "Todavía no has creado tu negocio")
+    }
+
+    private fun esDueno(negocio: Negocio, usuarioId: UUID) = negocio.usuario?.id == usuarioId
+
+    private fun exigirDueno(negocio: Negocio, usuarioId: UUID) {
+        if (!esDueno(negocio, usuarioId)) {
+            throw AppException(
+                HttpStatus.FORBIDDEN, "SOLO_DUENO",
+                "Solo el dueño del negocio puede hacer esto"
+            )
+        }
+    }
 
     /** Verifica que el ítem exista Y pertenezca al negocio del usuario autenticado. */
     private fun itemDePropietarioOrThrow(usuarioId: UUID, itemId: UUID): CatalogoItem {
@@ -875,7 +973,7 @@ class NegocioService(
         return slug
     }
 
-    private fun Negocio.aResponse(totalCatalogo: Long) = NegocioResponse(
+    private fun Negocio.aResponse(totalCatalogo: Long, usuarioId: UUID) = NegocioResponse(
         id = id!!, nombreComercial = nombreComercial, slug = slug,
         descripcionCorta = descripcionCorta, ciudad = ciudad, whatsapp = whatsapp,
         fotoPortadaUrl = fotoPortadaUrl, logoUrl = logoUrl, videoPresentacionUrl = videoPresentacionUrl,
@@ -883,6 +981,7 @@ class NegocioService(
         trustScore = trustScore, nivelFormalizacion = nivelFormalizacion,
         estadoPublicacion = estadoPublicacion, totalCatalogo = totalCatalogo,
         insignias = negocioInsigniaRepository.findByNegocioIdOrderByObtenidaEnDesc(id!!).map { it.aInsigniaResponse() },
+        esDueno = esDueno(this, usuarioId),
         creadoEn = creadoEn, actualizadoEn = actualizadoEn,
     )
 

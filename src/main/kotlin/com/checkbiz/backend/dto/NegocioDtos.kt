@@ -1,6 +1,7 @@
 package com.checkbiz.backend.dto
 
 import jakarta.validation.constraints.DecimalMin
+import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Pattern
@@ -76,6 +77,7 @@ data class NegocioResponse(
     val estadoPublicacion: String,
     val totalCatalogo: Long,
     val insignias: List<InsigniaResponse>,
+    val esDueno: Boolean,
     val creadoEn: OffsetDateTime,
     val actualizadoEn: OffsetDateTime,
 )
@@ -311,4 +313,19 @@ data class CambiarPlanRequest(
 
     @field:NotBlank @field:Pattern(regexp = "mensual|semestral")
     val ciclo: String,
+)
+
+// ---------------------------------------------------------------------
+// Multiusuario (B9.1 — Elite)
+// ---------------------------------------------------------------------
+data class ColaboradorResponse(
+    val usuarioId: UUID,
+    val nombreCompleto: String,
+    val correo: String,
+    val agregadoEn: OffsetDateTime,
+)
+
+data class InvitarColaboradorRequest(
+    @field:NotBlank @field:Email
+    val correo: String,
 )
