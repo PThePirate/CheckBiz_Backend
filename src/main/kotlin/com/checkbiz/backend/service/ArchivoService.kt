@@ -71,4 +71,54 @@ class ArchivoService(
         }
         return Files.readAllBytes(archivo) to tipo
     }
+
+    /**
+     * Logo, portada y fotos de catálogo (A6/B3/B4) son públicas por
+     * naturaleza — se muestran en la Mini Landing Page sin sesión. Se
+     * guardan en un subdirectorio propio, físicamente separado del de KYC
+     * y fotos de perfil, para que servirlas por un endpoint público jamás
+     * pueda alcanzar un documento de identidad aunque alguien adivinara su
+     * nombre de archivo.
+     */
+    fun guardarImagenNegocio(file: MultipartFile): String {
+        if (file.isEmpty) {
+            throw AppException(HttpStatus.BAD_REQUEST, "FOTO_REQUERIDA", "Debes adjuntar una imagen")
+        }
+        if (file.contentType !in tiposPermitidos) {
+            throw AppException(HttpStatus.BAD_REQUEST, "FORMATO_INVALIDO", "Formato no permitido. Usa JPG, PNG o WEBP.")
+        }
+
+        val dir = Path.of(uploadsDir, "negocios")
+        Files.createDirectories(dir)
+
+        val ext = when (file.contentType) {
+            "image/png" -> ".png"
+            "image/webp" -> ".webp"
+            else -> ".jpg"
+        }
+        val nombre = "${UUID.randomUUID()}$ext"
+        file.transferTo(dir.resolve(nombre))
+
+        // Ruta relativa al backend, no a /uploads: la sirve NegocioPublicoController
+        // (imágenes públicas), nunca un recurso estático directo.
+        return "/api/negocios/imagenes/$nombre"
+    }
+
+    /** Lee del subdirectorio "negocios" — nunca puede alcanzar el de KYC/perfil. */
+    fun leerImagenNegocio(fotoUrl: String): Pair<ByteArray, MediaType> {
+        val baseDir = Path.of(uploadsDir, "negocios").toAbsolutePath().normalize()
+        val nombre = Path.of(fotoUrl).fileName.toString()
+        val archivo = baseDir.resolve(nombre).normalize()
+
+        if (!archivo.startsWith(baseDir) || !Files.exists(archivo)) {
+            throw AppException(HttpStatus.NOT_FOUND, "ARCHIVO_NO_ENCONTRADO", "El archivo no existe")
+        }
+
+        val tipo = when {
+            nombre.endsWith(".png") -> MediaType.IMAGE_PNG
+            nombre.endsWith(".webp") -> MediaType.parseMediaType("image/webp")
+            else -> MediaType.IMAGE_JPEG
+        }
+        return Files.readAllBytes(archivo) to tipo
+    }
 }

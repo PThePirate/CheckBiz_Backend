@@ -152,6 +152,28 @@ class NegocioService(
     }
 
     @Transactional
+    fun actualizarLogo(usuarioId: UUID, logoUrl: String): NegocioResponse {
+        val negocio = miNegocioOrThrow(usuarioId)
+        negocio.logoUrl = logoUrl
+        negocio.actualizadoEn = OffsetDateTime.now()
+        negocioRepository.save(negocio)
+
+        val total = catalogoRepository.countByNegocioIdAndActivoTrue(negocio.id!!)
+        return negocio.aResponse(total)
+    }
+
+    @Transactional
+    fun actualizarPortada(usuarioId: UUID, fotoPortadaUrl: String): NegocioResponse {
+        val negocio = miNegocioOrThrow(usuarioId)
+        negocio.fotoPortadaUrl = fotoPortadaUrl
+        negocio.actualizadoEn = OffsetDateTime.now()
+        negocioRepository.save(negocio)
+
+        val total = catalogoRepository.countByNegocioIdAndActivoTrue(negocio.id!!)
+        return negocio.aResponse(total)
+    }
+
+    @Transactional
     fun cambiarPublicacion(usuarioId: UUID, publicar: Boolean): NegocioResponse {
         val negocio = miNegocioOrThrow(usuarioId)
 
@@ -243,6 +265,14 @@ class NegocioService(
     fun eliminarItem(usuarioId: UUID, itemId: UUID) {
         val item = itemDePropietarioOrThrow(usuarioId, itemId)
         catalogoRepository.delete(item)
+    }
+
+    @Transactional
+    fun actualizarFotoItem(usuarioId: UUID, itemId: UUID, fotoUrl: String): ItemCatalogoResponse {
+        val item = itemDePropietarioOrThrow(usuarioId, itemId)
+        item.fotoUrl = fotoUrl
+        catalogoRepository.save(item)
+        return item.aResponse()
     }
 
     fun categoriasDisponibles(): List<CategoriaResumenResponse> =

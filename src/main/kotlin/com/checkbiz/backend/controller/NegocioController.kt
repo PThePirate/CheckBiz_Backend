@@ -3,17 +3,22 @@ package com.checkbiz.backend.controller
 import com.checkbiz.backend.config.CheckBizAuthenticationToken
 import com.checkbiz.backend.config.UsuarioClaims
 import com.checkbiz.backend.dto.*
+import com.checkbiz.backend.service.ArchivoService
 import com.checkbiz.backend.service.NegocioService
 import com.checkbiz.backend.util.RimpeSimulador
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.multipart.MultipartFile
 import java.util.UUID
 
 @RestController
 @RequestMapping("/api/negocio")
-class NegocioController(private val negocioService: NegocioService) {
+class NegocioController(
+    private val negocioService: NegocioService,
+    private val archivoService: ArchivoService,
+) {
 
     private fun usuarioActual(): UsuarioClaims {
         val auth = SecurityContextHolder.getContext().authentication as CheckBizAuthenticationToken
@@ -36,6 +41,19 @@ class NegocioController(private val negocioService: NegocioService) {
     @PatchMapping("/mio/publicacion")
     fun cambiarPublicacion(@RequestParam publicar: Boolean): NegocioResponse =
         negocioService.cambiarPublicacion(usuarioActual().sub, publicar)
+
+    // A6/B3 — subida real de logo y portada (antes solo se podía pegar una URL).
+    @PostMapping("/mio/logo", consumes = ["multipart/form-data"])
+    fun subirLogo(@RequestParam("foto") foto: MultipartFile): NegocioResponse {
+        val logoUrl = archivoService.guardarImagenNegocio(foto)
+        return negocioService.actualizarLogo(usuarioActual().sub, logoUrl)
+    }
+
+    @PostMapping("/mio/portada", consumes = ["multipart/form-data"])
+    fun subirPortada(@RequestParam("foto") foto: MultipartFile): NegocioResponse {
+        val fotoPortadaUrl = archivoService.guardarImagenNegocio(foto)
+        return negocioService.actualizarPortada(usuarioActual().sub, fotoPortadaUrl)
+    }
 
     // --- Bandeja de solicitudes (B5) ---
     @GetMapping("/mio/solicitudes")
@@ -80,6 +98,13 @@ class NegocioController(private val negocioService: NegocioService) {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun eliminarItem(@PathVariable id: UUID) {
         negocioService.eliminarItem(usuarioActual().sub, id)
+    }
+
+    // B4 — foto real de un ítem del catálogo (antes solo se podía pegar una URL).
+    @PostMapping("/mio/catalogo/{id}/foto", consumes = ["multipart/form-data"])
+    fun subirFotoItem(@PathVariable id: UUID, @RequestParam("foto") foto: MultipartFile): ItemCatalogoResponse {
+        val fotoUrl = archivoService.guardarImagenNegocio(foto)
+        return negocioService.actualizarFotoItem(usuarioActual().sub, id, fotoUrl)
     }
 
     // --- QR de verificación física (B11) ---

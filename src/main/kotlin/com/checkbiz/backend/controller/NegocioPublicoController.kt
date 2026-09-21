@@ -4,7 +4,9 @@ import com.checkbiz.backend.dto.CategoriaResumenResponse
 import com.checkbiz.backend.dto.EscaneoQrResponse
 import com.checkbiz.backend.dto.NegocioPublicoResponse
 import com.checkbiz.backend.dto.NegocioResumenPublicoResponse
+import com.checkbiz.backend.service.ArchivoService
 import com.checkbiz.backend.service.NegocioService
+import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -20,7 +22,10 @@ import org.springframework.web.bind.annotation.RestController
  */
 @RestController
 @RequestMapping("/api/negocios")
-class NegocioPublicoController(private val negocioService: NegocioService) {
+class NegocioPublicoController(
+    private val negocioService: NegocioService,
+    private val archivoService: ArchivoService,
+) {
 
     // A4/A5 — búsqueda y resultados. Todos los filtros son opcionales.
     @GetMapping
@@ -59,4 +64,14 @@ class NegocioPublicoController(private val negocioService: NegocioService) {
     @PostMapping("/qr/{codigo}/escaneo")
     fun registrarEscaneoQr(@PathVariable codigo: String): EscaneoQrResponse =
         negocioService.registrarEscaneoQr(codigo)
+
+    // A6/B3/B4 — logo, portada y fotos de catálogo se sirven aquí, público
+    // y sin autenticación, desde un subdirectorio separado del de KYC/perfil
+    // (ver ArchivoService.guardarImagenNegocio) para que esto nunca pueda
+    // alcanzar un documento de identidad.
+    @GetMapping("/imagenes/{nombre}")
+    fun obtenerImagen(@PathVariable nombre: String): ResponseEntity<ByteArray> {
+        val (bytes, tipo) = archivoService.leerImagenNegocio(nombre)
+        return ResponseEntity.ok().contentType(tipo).body(bytes)
+    }
 }
