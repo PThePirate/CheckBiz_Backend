@@ -40,6 +40,7 @@ services:
       SMTP_USERNAME: "${SMTP_USERNAME}"
       SMTP_PASSWORD: "${SMTP_PASSWORD}"
       EMAIL_FROM: "${EMAIL_FROM}"
+      EMAIL_LOGO_URL: "${EMAIL_LOGO_URL:-}"
       PORT: 4000
     ports:
       - "4000:4000"

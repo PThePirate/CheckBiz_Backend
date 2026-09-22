@@ -1,19 +1,6 @@
 package com.checkbiz.backend.service
 
-/**
- * Plantilla HTML compartida para los correos transaccionales de un código
- * de 6 dígitos (verificación de registro y recuperación de contraseña).
- *
- * Reglas de correo HTML, no de web normal: todo con <table> (Outlook de
- * escritorio usa el motor de Word, no soporta flexbox/grid), estilos
- * críticos siempre inline (varios clientes ignoran <style> por completo),
- * y sin imágenes remotas (bloqueadas por defecto en muchos clientes; el
- * ícono del escudo es una celda con color de fondo + un carácter, no un
- * archivo). La animación en <style> es un extra progresivo: donde el
- * cliente la soporta (Apple Mail, Gmail web/app) se ve el "pop" del
- * escudo y el pulso alrededor del código; donde no (Outlook de escritorio)
- * el diseño se queda estático y se ve igual de completo.
- */
+/** Plantilla compartida de verificación y recuperación, con logo PNG adjunto por CID. */
 object EmailTemplates {
     fun codigoVerificacion(
         nombreCompleto: String,
@@ -50,11 +37,7 @@ object EmailTemplates {
 
             <!-- Header -->
             <tr><td style="background-color:#172A36;padding:36px 32px 28px;text-align:center;">
-              <table role="presentation" cellpadding="0" cellspacing="0" align="center"><tr><td
-                class="cb-shield"
-                style="width:46px;height:46px;background-color:#2F63E0;border-radius:13px;text-align:center;">
-                <span style="font-size:22px;line-height:46px;color:#ffffff;">&#10003;</span>
-              </td></tr></table>
+              <img src="cid:checkbiz-logo" alt="Logo de CheckBiz" width="90" height="80" style="display:block;margin:0 auto;width:90px;height:80px;border:0;border-radius:14px;">
               <div style="margin-top:14px;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:.3px;">CheckBiz</div>
               <div style="margin-top:4px;font-size:11px;color:#9FB4C4;letter-spacing:.8px;">CONFIANZA VERIFICADA, SIN INTERMEDIARIOS</div>
             </td></tr>

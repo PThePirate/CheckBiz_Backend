@@ -50,6 +50,7 @@ checkbiz:
   otp:
     dev-mode: ${OTP_DEV_MODE:true}
   email:
+    logo-url: ${EMAIL_LOGO_URL:}
     from: ${EMAIL_FROM:}
     habilitado: ${EMAIL_HABILITADO:false}
   uploads:
