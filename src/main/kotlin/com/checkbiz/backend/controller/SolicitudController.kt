@@ -39,4 +39,16 @@ class SolicitudController(private val solicitudService: SolicitudService) {
     @ResponseStatus(HttpStatus.CREATED)
     fun dejarResena(@PathVariable id: UUID, @Valid @RequestBody req: CrearResenaRequest): SolicitudResponse =
         solicitudService.dejarResena(usuarioActual().sub, id, req)
+
+    // Chat interno de la solicitud (reemplaza el botón de WhatsApp) —
+    // accesible tanto por el cliente dueño de la solicitud como por el
+    // negocio (dueño o colaborador) que la recibió.
+    @GetMapping("/{id}/mensajes")
+    fun listarMensajes(@PathVariable id: UUID): List<MensajeResponse> =
+        solicitudService.listarMensajes(usuarioActual().sub, id)
+
+    @PostMapping("/{id}/mensajes")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun enviarMensaje(@PathVariable id: UUID, @Valid @RequestBody req: EnviarMensajeRequest): MensajeResponse =
+        solicitudService.enviarMensaje(usuarioActual().sub, id, req)
 }

@@ -72,3 +72,21 @@ data class ActualizarEstadoSolicitudRequest(
     @field:Pattern(regexp = "en_conversacion|cancelada", message = "Estado no permitido para el emprendedor")
     val estado: String,
 )
+
+// ---------------------------------------------------------------------
+// Chat interno de la solicitud (reemplaza el botón de WhatsApp)
+// ---------------------------------------------------------------------
+data class AutorMensajeResponse(val id: UUID, val nombreCompleto: String)
+
+data class MensajeResponse(
+    val id: UUID,
+    val autor: AutorMensajeResponse,
+    val esMio: Boolean,
+    val cuerpo: String,
+    val creadoEn: OffsetDateTime,
+)
+
+data class EnviarMensajeRequest(
+    @field:NotBlank @field:Size(min = 1, max = 1000)
+    val cuerpo: String,
+)

@@ -1,10 +1,13 @@
 package com.checkbiz.backend.service
 
+import com.checkbiz.backend.domain.MensajeSolicitud
 import com.checkbiz.backend.domain.Notificacion
 import com.checkbiz.backend.domain.Resena
 import com.checkbiz.backend.domain.Solicitud
 import com.checkbiz.backend.dto.*
 import com.checkbiz.backend.exception.AppException
+import com.checkbiz.backend.repository.MensajeSolicitudRepository
+import com.checkbiz.backend.repository.NegocioColaboradorRepository
 import com.checkbiz.backend.repository.NegocioRepository
 import com.checkbiz.backend.repository.NotificacionRepository
 import com.checkbiz.backend.repository.ResenaRepository
@@ -24,6 +27,8 @@ class SolicitudService(
     private val resenaRepository: ResenaRepository,
     private val negocioService: NegocioService,
     private val notificacionRepository: NotificacionRepository,
+    private val mensajeSolicitudRepository: MensajeSolicitudRepository,
+    private val negocioColaboradorRepository: NegocioColaboradorRepository,
 ) {
 
     @Transactional
@@ -54,6 +59,10 @@ class SolicitudService(
                 descripcion = req.descripcion, fechaEstimada = req.fechaEstimada,
                 estado = "enviada",
             )
+        )
+        // El primer mensaje del chat es la descripción con la que se abrió la solicitud.
+        mensajeSolicitudRepository.save(
+            MensajeSolicitud(solicitud = solicitud, autor = cliente, cuerpo = req.descripcion)
         )
 
         notificacionRepository.save(
@@ -116,6 +125,74 @@ class SolicitudService(
 
         return solicitud.aResponse()
     }
+
+    // ===================================================================
+    // Chat interno de la solicitud (reemplaza el botón de WhatsApp)
+    // ===================================================================
+    @Transactional(readOnly = true)
+    fun listarMensajes(usuarioId: UUID, solicitudId: UUID): List<MensajeResponse> {
+        solicitudConAccesoOrThrow(usuarioId, solicitudId)
+        return mensajeSolicitudRepository.findBySolicitudIdOrderByCreadoEnAsc(solicitudId)
+            .map { it.aResponse(usuarioId) }
+    }
+
+    @Transactional
+    fun enviarMensaje(usuarioId: UUID, solicitudId: UUID, req: EnviarMensajeRequest): MensajeResponse {
+        val solicitud = solicitudConAccesoOrThrow(usuarioId, solicitudId)
+        val esCliente = solicitud.cliente?.id == usuarioId
+
+        when (solicitud.estado) {
+            "enviada" -> throw AppException(
+                HttpStatus.CONFLICT, "SOLICITUD_PENDIENTE",
+                if (esCliente) "Ya enviaste tu solicitud — espera a que el negocio la acepte para poder conversar"
+                else "Primero debes aceptar la solicitud antes de responder"
+            )
+            "confirmada", "cancelada" -> throw AppException(
+                HttpStatus.CONFLICT, "CONVERSACION_CERRADA", "Esta conversación ya está cerrada"
+            )
+        }
+
+        val autor = usuarioRepository.findById(usuarioId).orElseThrow()
+        val mensaje = mensajeSolicitudRepository.save(
+            MensajeSolicitud(solicitud = solicitud, autor = autor, cuerpo = req.cuerpo)
+        )
+
+        val destinatario = if (esCliente) solicitud.negocio!!.usuario else solicitud.cliente
+        destinatario?.let {
+            notificacionRepository.save(
+                Notificacion(
+                    usuario = it, tipo = "mensaje",
+                    titulo = "${autor.nombreCompleto} te escribió",
+                    mensaje = req.cuerpo.take(120),
+                )
+            )
+        }
+
+        return mensaje.aResponse(usuarioId)
+    }
+
+    /** Verifica que el usuario sea el cliente de la solicitud, o el dueño/colaborador del negocio. */
+    private fun solicitudConAccesoOrThrow(usuarioId: UUID, solicitudId: UUID): Solicitud {
+        val solicitud = solicitudRepository.findById(solicitudId)
+            .orElseThrow { AppException(HttpStatus.NOT_FOUND, "NO_ENCONTRADA", "Solicitud no encontrada") }
+
+        val esCliente = solicitud.cliente?.id == usuarioId
+        val esNegocio = solicitud.negocio?.usuario?.id == usuarioId ||
+            negocioColaboradorRepository.findByUsuarioId(usuarioId)?.negocio?.id == solicitud.negocio?.id
+
+        if (!esCliente && !esNegocio) {
+            throw AppException(HttpStatus.FORBIDDEN, "NO_AUTORIZADO", "Esta conversación no te pertenece")
+        }
+        return solicitud
+    }
+
+    private fun MensajeSolicitud.aResponse(usuarioId: UUID) = MensajeResponse(
+        id = id!!,
+        autor = AutorMensajeResponse(autor!!.id!!, autor!!.nombreCompleto),
+        esMio = autor!!.id == usuarioId,
+        cuerpo = cuerpo,
+        creadoEn = creadoEn,
+    )
 
     // ===================================================================
     private fun miSolicitudOrThrow(clienteId: UUID, solicitudId: UUID): Solicitud {
