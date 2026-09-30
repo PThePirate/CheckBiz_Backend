@@ -89,6 +89,7 @@ docker-compose.local.yml
 build/
 .gradle/
 out/
+bin/
 *.class
 
 # --------------------------------------------------------------------
@@ -115,4 +116,4 @@ desktop.ini
 *.bak
 *.orig
 *.tmp
-*.swpbin/
+*.swp

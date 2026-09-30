@@ -1,2 +1,0 @@
-ALTER TABLE negocios ADD COLUMN slogan VARCHAR(120);
-ALTER TABLE negocios ALTER COLUMN descripcion_corta TYPE VARCHAR(500);
