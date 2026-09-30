@@ -246,8 +246,8 @@ CREATE TABLE negocios (
 
     trust_score             SMALLINT NOT NULL DEFAULT 0
                                  CHECK (trust_score BETWEEN 0 AND 100),
-    nivel_formalizacion     VARCHAR(20) NOT NULL DEFAULT 'semilla'
-                                 CHECK (nivel_formalizacion IN ('semilla','asesoria','formalizado')),
+    nivel_formalizacion     VARCHAR(20) NOT NULL DEFAULT 'pendiente'
+                                 CHECK (nivel_formalizacion IN ('pendiente','verificado','formalizado')),
     estado_publicacion      VARCHAR(20) NOT NULL DEFAULT 'borrador'
                                  CHECK (estado_publicacion IN ('borrador','publicado','suspendido')),
 
@@ -322,7 +322,7 @@ CREATE TABLE ruta_formalizacion (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     negocio_id      UUID NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
     nivel           VARCHAR(20) NOT NULL
-                        CHECK (nivel IN ('semilla','asesoria','formalizado')),
+                        CHECK (nivel IN ('verificado','formalizado')),
     requisito       VARCHAR(150) NOT NULL,
     completado      BOOLEAN NOT NULL DEFAULT FALSE,
     completado_en   TIMESTAMPTZ
