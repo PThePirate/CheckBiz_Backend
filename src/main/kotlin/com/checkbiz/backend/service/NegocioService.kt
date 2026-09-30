@@ -655,6 +655,7 @@ class NegocioService(
         )
     }
 
+    @Transactional(readOnly = true)
     fun listarMisResenas(usuarioId: UUID): List<ResenaDetalleResponse> {
         val negocio = miNegocioOrThrow(usuarioId)
         return resenaRepository.findByNegocioIdOrderByCreadoEnDesc(negocio.id!!).map { it.aDetalleResponse() }
